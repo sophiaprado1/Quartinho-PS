@@ -1,5 +1,8 @@
 # Quartinho-PS
 
+<img width="540" height="308" alt="image" src="https://github.com/user-attachments/assets/471390e7-41ff-4bb7-bdd6-9f863ffe039e" />
+
+
 Universidade Federal do Tocantins (UFT)
 Ciência da Computação
 Projeto de Sistemas 2025/2
@@ -21,3 +24,7 @@ Laura Barbosa Henrique  - [@tinywin](https://github.com/tinywin)
 Sophia Ribeiro Prado - [@sophiaprado1](https://github.com/sophiaprado1)
 
 Vinícius Wanderley Arruda - [@ViiniDev](https://github.com/ViiniDev)
+
+# [Vídeo Pitch para o Desafio Liga Jovem](https://youtu.be/oRFkZjGtHVI?si=QO7GZrxkkUTTM4z9)
+
+# [Protótipo - Figma](https://www.figma.com/design/iVLNSYRE2kueqLmTxqiMql/Quartinho?m=auto&t=rqkmVmDXYPbeSLbM-1)
