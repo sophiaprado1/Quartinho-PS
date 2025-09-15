@@ -28,3 +28,5 @@ Vinícius Wanderley Arruda - [@ViiniDev](https://github.com/ViiniDev)
 # [Vídeo Pitch para o Desafio Liga Jovem](https://youtu.be/oRFkZjGtHVI?si=QO7GZrxkkUTTM4z9)
 
 # [Protótipo - Figma](https://www.figma.com/design/iVLNSYRE2kueqLmTxqiMql/Quartinho?m=auto&t=rqkmVmDXYPbeSLbM-1)
+
+# [Planejamento com requisitos funcionais](https://docs.google.com/document/d/1WZm1U4QCbiWitJJ3nBIe4DVmaXJXLPwHwoUBBdMrESQ/edit?usp=sharing)
