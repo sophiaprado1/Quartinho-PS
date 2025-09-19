@@ -1,7 +1,8 @@
 from rest_framework import routers
-from .views import UsuarioViewSet
+from .views import LocadorViewSet, InquilinoViewSet
 
 router = routers.DefaultRouter()
-router.register(r'usuarios', UsuarioViewSet)
+router.register(r'locadores', LocadorViewSet, basename='locador')
+router.register(r'inquilinos', InquilinoViewSet, basename='inquilino')
 
 urlpatterns = router.urls
