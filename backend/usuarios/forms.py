@@ -1,15 +1,16 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from .models import Usuario
+from django.contrib.auth.hashers import make_password
 
 class LocadorCreateForm(UserCreationForm):
     class Meta:
         model = Usuario
-        fields = ['username', 'email', 'telefone', 'bio', 'password1', 'password2']
+        fields = ['username', 'email', 'telefone', 'bio', 'password1', 'password2']  
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.tipo = 'locador'
+        user.tipo = 'locador'  
         if commit:
             user.save()
         return user
@@ -18,11 +19,11 @@ class LocadorCreateForm(UserCreationForm):
 class InquilinoCreateForm(UserCreationForm):
     class Meta:
         model = Usuario
-        fields = ['username', 'email', 'telefone', 'data_nascimento', 'password1', 'password2']
+        fields = ['username', 'email', 'telefone', 'data_nascimento', 'password1', 'password2']  
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.tipo = 'inquilino'
+        user.tipo = 'inquilino'  
         if commit:
             user.save()
         return user
