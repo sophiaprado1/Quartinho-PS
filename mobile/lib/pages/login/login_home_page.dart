@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/pages/login/widgets/button_login_email.dart';
 import 'package:mobile/pages/login/widgets/buttom_gmail.dart';
 import 'package:mobile/pages/login/widgets/login_image.dart';
 import 'package:mobile/pages/login/widgets/buttom_facebook.dart';
+import 'package:mobile/pages/signup/signup_page.dart'; // 👈 importa sua tela de cadastro
 
 class LoginHomePage extends StatelessWidget {
   const LoginHomePage({super.key});
@@ -20,30 +22,40 @@ class LoginHomePage extends StatelessWidget {
                 padding: EdgeInsets.only(top: 150, bottom: 26),
                 child: LoginImage(),
               ),
+
+              // Título
               Container(
                 alignment: Alignment.centerLeft,
                 margin: EdgeInsets.only(left: 30),
                 child: Text(
                   'Procurando\num Quartinho?',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.roboto(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
 
-              //Botão email
+              // Botão email
               SizedBox(height: 24),
               Container(child: ButtonLoginEmail(onPressed: () {})),
 
-              //Divisão Rodapé
+              // Divisão Rodapé
               SizedBox(height: 40),
               Row(
                 children: [
                   Expanded(child: Divider(color: Color(0xFFE5E5E5))),
-                  Text(' ou ', style: TextStyle(color: Color(0xFFA1A5C1))),
+                  Text(
+                    ' ou ',
+                    style: GoogleFonts.roboto(
+                      color: Color(0xFFA1A5C1),
+                    ),
+                  ),
                   Expanded(child: Divider(color: Color(0xFFE5E5E5))),
                 ],
               ),
 
-              //Gmail e Facwbook
+              // Gmail e Facebook
               SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -54,20 +66,33 @@ class LoginHomePage extends StatelessWidget {
                 ],
               ),
 
-              //Cadastre-se
-              SizedBox(height: 20,),
+              // Cadastre-se
+              SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Não têm uma conta?', 
-                  style: TextStyle(color: Color(0xFF404040)),),
+                  Text(
+                    'Não têm uma conta?',
+                    style: GoogleFonts.roboto(
+                      color: Color(0xFF404040),
+                    ),
+                  ),
                   TextButton(
                     onPressed: () {
-                      
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SignUpPage(),
+                        ),
+                      );
                     },
-                    child: Text('Cadastre-se',
-                    style: TextStyle(
-                      color:Color(0xFF404040) ),),
+                    child: Text(
+                      'Cadastre-se',
+                      style: GoogleFonts.roboto(
+                        color: Color(0xFF404040),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
