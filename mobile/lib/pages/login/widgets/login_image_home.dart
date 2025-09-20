@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
-class LoginImage extends StatelessWidget {
-  const LoginImage({super.key});
+class LoginImageHome extends StatelessWidget {
+  final String img;
+  const LoginImageHome({super.key, required this.img});
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Image.asset('assets/images/login_home.png',
+      child: Image.asset(img,
       width: double.infinity,
       ),
     );
