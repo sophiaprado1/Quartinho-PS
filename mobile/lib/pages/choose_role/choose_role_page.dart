@@ -3,7 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/pages/location/location_page.dart';
 
 class ChooseRolePage extends StatelessWidget {
-  const ChooseRolePage({super.key});
+  final String name;
+  final String email;
+
+  const ChooseRolePage({
+    super.key,
+    required this.name,
+    required this.email,
+  });
 
   static const Color bgPage = Color(0xFFF3F4F7);
   static const Color accent = Color(0xFFFF8533);
@@ -21,12 +28,12 @@ class ChooseRolePage extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(left: 16, top: 8),
                 child: _BackPillButton(
-                  onTap: () => Navigator.pop(context), // ✅ volta mantendo o estado
+                  onTap: () => Navigator.pop(context),
                 ),
               ),
             ),
 
-            // conteúdo centralizado com rolagem se precisar
+            // conteúdo centralizado
             Expanded(
               child: Center(
                 child: SingleChildScrollView(
@@ -54,7 +61,7 @@ class ChooseRolePage extends StatelessWidget {
                             textAlign: TextAlign.center,
                             style: GoogleFonts.lato(
                               fontSize: 15,
-                              color: Colors.black.withValues(alpha: 0.55),
+                              color: Colors.black.withValues(alpha: 0.55), // ✅ trocado
                               height: 1.3,
                             ),
                           ),
@@ -78,7 +85,10 @@ class ChooseRolePage extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const LocationPage(),
+                                  builder: (_) => LocationPage(
+                                    name: name,
+                                    email: email,
+                                  ),
                                 ),
                               );
                             },
@@ -118,7 +128,7 @@ class _RoleButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: ChooseRolePage.accent,
           elevation: 3,
-          shadowColor: Colors.black.withValues(alpha: 0.15),
+          shadowColor: Colors.black.withValues(alpha: 0.15), // ✅ trocado
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
           ),
@@ -153,7 +163,7 @@ class _BackPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.06),
+      color: Colors.black.withValues(alpha: 0.06), // ✅ trocado
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),

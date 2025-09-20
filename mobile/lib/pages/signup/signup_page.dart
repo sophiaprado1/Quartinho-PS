@@ -159,7 +159,10 @@ class _SignUpPageState extends State<SignUpPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const ChooseRolePage(),
+                                builder: (_) => ChooseRolePage(
+                                  name: _nameCtrl.text,
+                                  email: _emailCtrl.text,
+                                ),
                               ),
                             );
                           }
