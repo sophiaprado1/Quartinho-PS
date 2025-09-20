@@ -1,47 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class InputFields extends StatelessWidget {
-  const InputFields({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      child: SizedBox(
-        child: Column(
-          children: [
-            InputRightIcon(
-              hint: 'Enter your email',
-              icon: Icons.email,
-              controller: TextEditingController(),
-              keyboardType: TextInputType.emailAddress,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your email';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            InputRightIcon(
-              hint: 'Enter your password',
-              icon: Icons.lock,
-              controller: TextEditingController(),
-              obscure: true,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your password';
-                }
-                return null;
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class InputRightIcon extends StatelessWidget {
   final String hint;
   final IconData icon;

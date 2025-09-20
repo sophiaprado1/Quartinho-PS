@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/pages/login/login.dart';
 //import 'package:mobile/core/app_routes.dart';
 import 'package:mobile/pages/login/widgets/button_login_email.dart';
 import 'package:mobile/pages/login/widgets/buttom_gmail.dart';
-import 'package:mobile/pages/login/widgets/login_image.dart';
+import 'package:mobile/pages/login/widgets/login_image_home.dart';
 import 'package:mobile/pages/login/widgets/buttom_facebook.dart';
-import 'package:mobile/pages/signup/signup_page.dart'; // 👈 importa sua tela de cadastro
+import 'package:mobile/pages/signup/signup_page.dart'; //  importa sua tela de cadastro
 
 class LoginHomePage extends StatelessWidget {
   const LoginHomePage({super.key});
+  final String _img = 'assets/images/login_home.png';
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +23,7 @@ class LoginHomePage extends StatelessWidget {
             children: [
               Padding(
                 padding: EdgeInsets.only(top: 150, bottom: 26),
-                child: LoginImage(),
+                child: LoginImageHome(img: _img,),
               ),
 
               // Título
@@ -39,8 +41,14 @@ class LoginHomePage extends StatelessWidget {
 
               // Botão email
               SizedBox(height: 24),
-              Container(child: ButtonLoginEmail(onPressed: () {})),
-
+              ButtonLoginEmail(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => Login()),
+                  );
+                },
+              ),
               // Divisão Rodapé
               SizedBox(height: 40),
               Row(
