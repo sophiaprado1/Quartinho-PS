@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ButtonLoginEmail extends StatelessWidget {
   final VoidCallback? onPressed;
@@ -10,27 +11,34 @@ class ButtonLoginEmail extends StatelessWidget {
       height: 65,
       width: 270,
       child: ElevatedButton(
-        onPressed: onPressed, 
+        onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: Color(0xFFFF8533),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(40),
+          ),
         ),
         child: Center(
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.email,
+              Icon(
+                Icons.email,
                 color: Colors.white,
               ),
               SizedBox(width: 10),
-              Text('Continuar com Email',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.white,
-              ),),
+              Text(
+                'Continuar com Email',
+                style: GoogleFonts.roboto(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
-        ),
+      ),
     );
   }
 }
