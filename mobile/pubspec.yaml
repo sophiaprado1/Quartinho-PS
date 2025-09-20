@@ -33,6 +33,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   font_awesome_flutter: ^10.7.0
   google_fonts: ^6.2.1
+  image_picker: ^1.0.7
   google_maps_flutter: ^2.6.0
 
 dev_dependencies:
@@ -58,6 +59,8 @@ flutter:
     - assets/images/login_home.png
     - assets/images/logo_gmail.png
     - assets/images/gps.png
+    - assets/images/check.png
+    - assets/images/tinyhouse.png
     - assets/images/login.png
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

@@ -6,7 +6,14 @@ import 'widgets/map_card.dart';
 import 'widgets/address_card.dart';
 
 class LocationPage extends StatefulWidget {
-  const LocationPage({super.key});
+  final String name;
+  final String email;
+
+  const LocationPage({
+    super.key,
+    required this.name,
+    required this.email,
+  });
 
   @override
   State<LocationPage> createState() => _LocationPageState();
@@ -30,12 +37,15 @@ class _LocationPageState extends State<LocationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
+              // Header com back e skip
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  BackPillButton(),
-                  SkipPill(),
+                children: [
+                  const BackPillButton(),
+                  SkipPill(
+                    name: widget.name,
+                    email: widget.email,
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -60,7 +70,7 @@ class _LocationPageState extends State<LocationPage> {
               const MapCard(),
               const SizedBox(height: 16),
 
-              // AddressCard com input
+              // Campo endereço
               AddressCard(controller: _addressCtrl),
 
               const Spacer(),
@@ -86,8 +96,8 @@ class _LocationPageState extends State<LocationPage> {
                       return;
                     }
 
-                    debugPrint("Endereço digitado: ${_addressCtrl.text}");
-                    // TODO: próxima tela
+                    debugPrint("Endereço: ${_addressCtrl.text}");
+                    // TODO: chamar próxima tela (provavelmente ExtraSignUpPage)
                   },
                   child: Text(
                     "Próximo",
