@@ -33,7 +33,7 @@ class ButtonLogin extends StatelessWidget {
             );
             return;
           }
-          // Aqui você pode chamar sua função de autenticação
+          // Função de autenticação
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Login válido!')),
           );
