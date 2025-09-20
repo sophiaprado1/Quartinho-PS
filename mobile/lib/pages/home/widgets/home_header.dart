@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/pages/login/login_home_page.dart';
+import 'package:mobile/core/app_routes.dart';
+
 
 class HomeHeader extends StatelessWidget {
   
@@ -35,11 +36,10 @@ class HomeHeader extends StatelessWidget {
           height: 45,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey[350],
+              backgroundColor: Color(0xFFF5F4F8),
             ),
             onPressed: (){
-              Navigator.push(context,
-               MaterialPageRoute(builder: (context) => LoginHomePage()));
+              Navigator.pushNamed(context, AppRoutes.loginHome);
             }, 
             child: Text(
               'Pular',

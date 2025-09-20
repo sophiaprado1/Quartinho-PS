@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/theme.dart';
-import 'pages/home/home_page.dart';
+import 'core/app_routes.dart';
 
 void main() => runApp(const QuartinhoApp());
 
@@ -13,7 +13,8 @@ class QuartinhoApp extends StatelessWidget {
       title: 'Quartinho',
       theme: buildAppTheme(),
       debugShowCheckedModeBanner: false,
-      home: const HomePage(),
+      initialRoute: AppRoutes.home,
+      onGenerateRoute: AppRoutes.generateRoute,
     );
   }
 }

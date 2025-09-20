@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+//import 'package:mobile/core/app_routes.dart';
 import 'package:mobile/pages/login/widgets/button_login_email.dart';
 import 'package:mobile/pages/login/widgets/buttom_gmail.dart';
 import 'package:mobile/pages/login/widgets/login_image.dart';
@@ -68,6 +69,8 @@ class LoginHomePage extends StatelessWidget {
 
               // Cadastre-se
               SizedBox(height: 20),
+              //Cadastre-se
+              SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -77,6 +80,7 @@ class LoginHomePage extends StatelessWidget {
                       color: Color(0xFF404040),
                     ),
                   ),
+                 
                   TextButton(
                     onPressed: () {
                       Navigator.push(

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/pages/choose_role/choose_role_page.dart';
+import 'package:mobile/pages/signup/widgets/buttom_back.dart';
+import 'package:mobile/pages/signup/widgets/input_right_icon.dart';
+import 'package:mobile/pages/signup/widgets/register_buttom.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -20,9 +23,8 @@ class _SignUpPageState extends State<SignUpPage> {
   bool showPassword = false;
 
   // cores de layout
-  static const Color bgPage = Color(0xFFF3F4F7);
-  static const Color fieldBg = Color(0xFFF2F3F9);
-  static const Color accent = Color(0xFFFF8533);
+  static const Color bgPage = Colors.white;
+
 
   @override
   void dispose() {
@@ -48,10 +50,11 @@ class _SignUpPageState extends State<SignUpPage> {
                   // Botão de voltar (pill)
                   const Padding(
                     padding: EdgeInsets.only(bottom: 24),
-                    child: BackPillButton(),
+                    child: ButtomBack(),
                   ),
 
                   // título — Roboto
+                  SizedBox(height: 40),
                   Text(
                     'Crie sua conta',
                     style: GoogleFonts.roboto(
@@ -60,7 +63,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       height: 1.2,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 30),
 
                   // subtítulo — Lato
                   Text(
@@ -74,7 +77,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   const SizedBox(height: 24),
 
                   // Campos
-                  _InputRightIcon(
+                  SizedBox(height: 20),
+                  InputRightIcon(
                     controller: _nameCtrl,
                     hint: 'Marta Ferreira',
                     icon: Icons.person_outline,
@@ -83,7 +87,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  _InputRightIcon(
+                  InputRightIcon(
                     controller: _emailCtrl,
                     hint: 'ferreira.marta@uft.edu.br',
                     icon: Icons.email_outlined,
@@ -96,7 +100,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  _InputRightIcon(
+                  InputRightIcon(
                     controller: _passwordCtrl,
                     hint: '****************',
                     icon: Icons.lock_outline,
@@ -143,37 +147,17 @@ class _SignUpPageState extends State<SignUpPage> {
                   // Botão principal
                   Align(
                     alignment: Alignment.center,
-                    child: SizedBox(
-                      width: 280,
-                      height: 56,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: accent,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
-                          ),
-                        ),
-                        onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ChooseRolePage(),
-                              ),
-                            );
-                          }
-                        },
-                        child: Text(
-                          'Registre-se!',
-                          style: GoogleFonts.lato(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: .2,
-                          ),
-                        ),
-                      ),
+                    child: RegisterButton(
+                      onPressed: () {
+                        if (_formKey.currentState!.validate()) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ChooseRolePage(),
+                            ),
+                          );
+                        }
+                      },
                     ),
                   ),
                 ],
@@ -186,83 +170,8 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   ButtonStyle get _flatBtnStyle => TextButton.styleFrom(
-        padding: EdgeInsets.zero,
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      );
-}
-
-/// Botão de voltar em formato pill
-class BackPillButton extends StatelessWidget {
-  final VoidCallback? onTap;
-  const BackPillButton({super.key, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.06),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap ?? () => Navigator.pop(context),
-        child: const SizedBox(
-          width: 36,
-          height: 36,
-          child: Center(
-            child: Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Campo de input com ícone à direita
-class _InputRightIcon extends StatelessWidget {
-  final String hint;
-  final IconData icon;
-  final bool obscure;
-  final TextInputType? keyboardType;
-  final TextEditingController controller;
-  final String? Function(String?)? validator;
-
-  const _InputRightIcon({
-    required this.hint,
-    required this.icon,
-    required this.controller,
-    this.obscure = false,
-    this.keyboardType,
-    this.validator,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      validator: validator,
-      keyboardType: keyboardType,
-      obscureText: obscure,
-      style: GoogleFonts.lato(),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.lato(
-          color: Colors.black.withValues(alpha: 0.45),
-        ),
-        isDense: true,
-        filled: true,
-        fillColor: _SignUpPageState.fieldBg,
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        suffixIcon: Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Icon(icon, size: 20),
-        ),
-        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
+    padding: EdgeInsets.zero,
+    minimumSize: Size.zero,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
 }

@@ -8,14 +8,14 @@ class BackPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.06),
+      color: Color(0xFFF5F4F8),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap ?? () => Navigator.pop(context),
         child: const SizedBox(
-          width: 36,
-          height: 36,
+          width: 60,
+          height: 100,
           child: Center(
             child: Icon(
               Icons.arrow_back_ios_new_rounded, // seta fina e elegante
@@ -25,6 +25,6 @@ class BackPillButton extends StatelessWidget {
           ),
         ),
       ),
-    );
+    );  
   }
 }
