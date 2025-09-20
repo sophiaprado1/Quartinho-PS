@@ -38,5 +38,5 @@ class InquilinoCreateForm(UserCreationForm):
     def clean_cpf(self):
         cpf_data = self.cleaned_data.get("cpf")
         if cpf_data and not cpf.validate(cpf_data):
-            raise forms.ValidationError("Este CPF é inválido.")
+            raise forms.ValidationError("Este CPF é invalido.")
         return cpf_data    
