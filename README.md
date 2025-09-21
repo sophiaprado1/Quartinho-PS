@@ -1,21 +1,6 @@
 # Quartinho App
 
-Uma aplicação React moderna para encontrar quartos e colegas de quarto.
-
-## 🏠 Sobre o Projeto
-
-O Quartinho é uma plataforma que conecta pessoas que procuram quartos com aquelas que têm quartos disponíveis. A aplicação oferece uma experiência intuitiva para:
-
-- **Procurar quartos**: Encontre o espaço perfeito para você
-- **Encontrar colegas de quarto**: Divida custos e faça novas amizades
-
-## ✨ Funcionalidades
-
-- 🎨 Design moderno e responsivo
-- 📱 Interface mobile-first
-- 🔐 Sistema de cadastro e login
-- 🏡 Categorização de usuários (procurando quarto vs. procurando colega)
-- 🎯 Fluxo de onboarding personalizado
+Uma aplicação moderna para encontrar quartos e colegas de quarto.
 
 ## 🛠️ Tecnologias Utilizadas
 
@@ -63,25 +48,6 @@ src/
 ├── lib/                  # Utilitários
 └── App.tsx              # Componente principal
 ```
-
-## 🎨 Design System
-
-- **Cor primária**: Laranja (#F97316)
-- **Tipografia**: Sistema padrão com fallbacks
-- **Bordas**: Arredondadas (rounded-lg, rounded-full)
-- **Espaçamento**: Baseado no sistema Tailwind
-
-## 🚧 Próximos Passos
-
-- [ ] Implementar backend para persistência de dados
-- [ ] Adicionar sistema de busca e filtros
-- [ ] Implementar chat entre usuários
-- [ ] Adicionar sistema de avaliações
-- [ ] Integrar com mapas para localização
-
-## 🤝 Contribuição
-
-Contribuições são bem-vindas! Por favor, abra uma issue ou pull request.
 
 ## 📄 Licença
 
