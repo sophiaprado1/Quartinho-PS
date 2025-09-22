@@ -5,7 +5,15 @@ import 'home_next_button.dart';
 class HomeImage extends StatelessWidget {
   final String image;
   final int pageIndicator;
-  const HomeImage({super.key, required this.image, required this.pageIndicator});
+  final VoidCallback? onNext;
+  final VoidCallback? onPrev;
+  const HomeImage({
+    super.key,
+    required this.image,
+    required this.pageIndicator,
+    this.onNext,
+    this.onPrev,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -59,15 +67,36 @@ class HomeImage extends StatelessWidget {
               child: Container(),
             ),
 
-            // botão flutuante na parte inferior central
+            // botões flutuantes na parte inferior central
             Positioned(
               bottom: 40,
               left: 60,
               right: 60,
-              child: HomeNextButton(
-                onPressed: () {
-                  // navegar para próxima tela
-                },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Botão voltar (só aparece se onPrev não for null)
+                  if (onPrev != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: SizedBox(
+                        height: 60,
+                        child: ElevatedButton(
+                          onPressed: onPrev,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                            elevation: 2,
+                          ),
+                          child: const Icon(Icons.arrow_back, color: Color(0xFF9B51E0), size: 28),
+                        ),
+                      ),
+                    ),
+                  // Botão próximo
+                  HomeNextButton(
+                    onPressed: onNext,
+                  ),
+                ],
               ),
             ),
           ],
