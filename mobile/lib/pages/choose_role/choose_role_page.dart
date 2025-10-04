@@ -5,11 +5,15 @@ import 'package:mobile/pages/location/location_page.dart';
 class ChooseRolePage extends StatelessWidget {
   final String name;
   final String email;
+  final String cpf;            // 👈 novo
+  final DateTime birthDate;    // 👈 novo
 
   const ChooseRolePage({
     super.key,
     required this.name,
     required this.email,
+    required this.cpf,         // 👈 novo
+    required this.birthDate,   // 👈 novo
   });
 
   static const Color bgPage = Color(0xFFF3F4F7);
@@ -22,18 +26,13 @@ class ChooseRolePage extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // topo com botão voltar
             Align(
               alignment: Alignment.centerLeft,
               child: Padding(
                 padding: const EdgeInsets.only(left: 16, top: 8),
-                child: _BackPillButton(
-                  onTap: () => Navigator.pop(context),
-                ),
+                child: _BackPillButton(onTap: () => Navigator.pop(context)),
               ),
             ),
-
-            // conteúdo centralizado
             Expanded(
               child: Center(
                 child: SingleChildScrollView(
@@ -61,23 +60,22 @@ class ChooseRolePage extends StatelessWidget {
                             textAlign: TextAlign.center,
                             style: GoogleFonts.lato(
                               fontSize: 15,
-                              color: Colors.black.withValues(alpha: 0.55), // ✅ trocado
+                              color: Colors.black.withValues(alpha: 0.55),
                               height: 1.3,
                             ),
                           ),
                           const SizedBox(height: 56),
 
-                          // Botão Locador
                           _RoleButton(
                             label: "Sou Locador",
                             icon: Icons.home_work_outlined,
                             onTap: () {
-                              // TODO: fluxo do Locador
+                              // TODO: fluxo do Locador (repassar os mesmos dados)
                             },
                           ),
                           const SizedBox(height: 20),
 
-                          // Botão Inquilino -> LocationPage
+                          // 👉 Repassa name, email, cpf, birthDate
                           _RoleButton(
                             label: "Sou Inquilino",
                             icon: Icons.person_outline,
@@ -88,6 +86,8 @@ class ChooseRolePage extends StatelessWidget {
                                   builder: (_) => LocationPage(
                                     name: name,
                                     email: email,
+                                    cpf: cpf,                 // 👈 novo
+                                    birthDate: birthDate,     // 👈 novo
                                   ),
                                 ),
                               );
@@ -107,17 +107,11 @@ class ChooseRolePage extends StatelessWidget {
   }
 }
 
-/// Botão pill estilizado
 class _RoleButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
-
-  const _RoleButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
+  const _RoleButton({required this.label, required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -128,10 +122,8 @@ class _RoleButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: ChooseRolePage.accent,
           elevation: 3,
-          shadowColor: Colors.black.withValues(alpha: 0.15), // ✅ trocado
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
+          shadowColor: Colors.black.withValues(alpha: 0.15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         ),
         onPressed: onTap,
         child: Row(
@@ -155,7 +147,6 @@ class _RoleButton extends StatelessWidget {
   }
 }
 
-/// Back pill (mesmo estilo do SignUpPage)
 class _BackPillButton extends StatelessWidget {
   final VoidCallback onTap;
   const _BackPillButton({required this.onTap});
@@ -163,7 +154,7 @@ class _BackPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.06), // ✅ trocado
+      color: Colors.black.withValues(alpha: 0.06),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -171,9 +162,7 @@ class _BackPillButton extends StatelessWidget {
         child: const SizedBox(
           width: 36,
           height: 36,
-          child: Center(
-            child: Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          ),
+          child: Center(child: Icon(Icons.arrow_back_ios_new_rounded, size: 18)),
         ),
       ),
     );

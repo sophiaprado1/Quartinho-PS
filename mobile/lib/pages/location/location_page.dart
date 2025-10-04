@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'widgets/back_pill_button.dart';
 import 'widgets/skip_pill.dart';
 import 'widgets/map_card.dart';
 import 'widgets/address_card.dart';
 
+// importe sua ExtraSignUpPage real
+import 'package:mobile/pages/signup/extra_signup_page.dart';
+
 class LocationPage extends StatefulWidget {
   final String name;
   final String email;
+  final String cpf;            // 👈 novo
+  final DateTime birthDate;    // 👈 novo
 
   const LocationPage({
     super.key,
     required this.name,
     required this.email,
+    required this.cpf,         // 👈 novo
+    required this.birthDate,   // 👈 novo
   });
 
   @override
@@ -27,6 +35,21 @@ class _LocationPageState extends State<LocationPage> {
     _addressCtrl.dispose();
     super.dispose();
   }
+
+void _goNext() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ExtraSignUpPage(
+        name: widget.name,
+        email: widget.email,
+        cpf: widget.cpf,
+        birthDate: widget.birthDate,
+        city: _addressCtrl.text.isNotEmpty ? _addressCtrl.text : null, // ✅ aqui
+      ),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +68,9 @@ class _LocationPageState extends State<LocationPage> {
                   SkipPill(
                     name: widget.name,
                     email: widget.email,
+                    cpf: widget.cpf,               // 👈 novo
+                    birthDate: widget.birthDate,   // 👈 novo
+                    onSkip: _goNext,               // aciona o mesmo fluxo do próximo
                   ),
                 ],
               ),
@@ -62,7 +88,7 @@ class _LocationPageState extends State<LocationPage> {
                 "Você pode mudar essa configuração depois",
                 style: GoogleFonts.lato(
                   fontSize: 14,
-                  color: Colors.black54,
+                  color: Colors.black.withValues(alpha: 0.55), // ✅ trocado
                 ),
               ),
               const SizedBox(height: 20),
@@ -96,8 +122,8 @@ class _LocationPageState extends State<LocationPage> {
                       return;
                     }
 
-                    debugPrint("Endereço: ${_addressCtrl.text}");
-                    // TODO: chamar próxima tela (provavelmente ExtraSignUpPage)
+                    // Se quiser salvar endereço/cidade, você pode passar adiante também.
+                    _goNext();
                   },
                   child: Text(
                     "Próximo",
