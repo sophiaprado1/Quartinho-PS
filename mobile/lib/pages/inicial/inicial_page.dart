@@ -844,3 +844,4 @@ class _PropertyCard extends StatelessWidget {
       ),
     );
   }
+}
