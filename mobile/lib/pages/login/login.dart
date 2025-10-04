@@ -5,6 +5,7 @@ import 'package:mobile/pages/login/widgets/image_login.dart';
 import 'package:mobile/pages/login/widgets/inputs_login.dart';
 import 'package:mobile/pages/signup/signup_page.dart';
 import 'package:mobile/pages/signup/widgets/buttom_back.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Login extends StatelessWidget {
   const Login({super.key});
@@ -79,5 +80,10 @@ class Login extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('jwt_token', token);
   }
 }

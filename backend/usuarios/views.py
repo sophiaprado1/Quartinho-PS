@@ -1,8 +1,35 @@
-from rest_framework import viewsets, permissions
-from .models import Usuario
-from .serializers import LocadorSerializer, InquilinoSerializer
 
+from rest_framework import viewsets, permissions, status
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from .models import Usuario, Imovel, Imovel_Foto
+from .serializers import LocadorSerializer, InquilinoSerializer, ImovelSerializer, ImovelFotoSerializer
+
+# ViewSet para Imovel_Foto
+class ImovelFotoViewSet(viewsets.ModelViewSet):
+    queryset = Imovel_Foto.objects.all()
+    serializer_class = ImovelFotoSerializer
+    permission_classes = [IsAuthenticated]
+
+class ImovelViewSet(viewsets.ModelViewSet):
+    queryset = Imovel.objects.all().order_by('-data_publicacao')
+    serializer_class = ImovelSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if hasattr(user, 'tipo') and user.tipo == 'locador':
+            serializer.save(dono=user)
+        else:
+            raise PermissionError('Apenas locadores podem cadastrar imóveis.')
+
+    def create(self, request, *args, **kwargs):
+        try:
+            return super().create(request, *args, **kwargs)
+        except PermissionError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+
 
 class AllowPostAnyReadAuthenticated(permissions.BasePermission):
 

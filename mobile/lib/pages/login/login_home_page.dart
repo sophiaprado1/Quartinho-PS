@@ -76,7 +76,7 @@ class LoginHomePage extends StatelessWidget {
               ),
 
               // Cadastre-se
-              SizedBox(height: 20),
+            
               //Cadastre-se
               SizedBox(height: 20),
               Row(

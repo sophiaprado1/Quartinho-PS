@@ -37,7 +37,6 @@ class _LocationPageState extends State<LocationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header com back e skip
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
