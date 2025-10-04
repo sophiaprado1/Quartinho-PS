@@ -26,11 +26,15 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('api/', include('usuarios.urls')),
+    path('api/', include('imoveis.urls')),
     path('admin/', admin.site.urls),
     path('token/', EmailTokenObtainPairView.as_view()),
     path('token/refresh', TokenRefreshView.as_view()),
     path('api-auth/', include('rest_framework.urls')),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
