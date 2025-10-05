@@ -3,6 +3,7 @@ import { Element } from "./screens/Element/Element";
 import { EmailLogin } from "./screens/EmailLogin/EmailLogin";
 import { Register } from "./screens/Register/Register";
 import { UserPreference } from "./screens/UserPreference/UserPreference";
+import AddProperty from "./screens/AddProperty/AddProperty";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/email-login" element={<EmailLogin />} />
         <Route path="/register" element={<Register />} />
         <Route path="/user-preference" element={<UserPreference />} />
+        <Route path="/add-property" element={<AddProperty />} />
       </Routes>
     </Router>
   );

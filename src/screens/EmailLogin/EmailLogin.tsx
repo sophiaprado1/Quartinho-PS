@@ -41,6 +41,18 @@ export const EmailLogin = (): JSX.Element => {
               />
             </div>
 
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                Senha
+              </label>
+              <input
+                type="password"
+                id="password"
+                placeholder="Digite sua senha"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-colors"
+              />
+            </div>
+
             <Button className="w-full bg-orange-500 hover:bg-orange-600 rounded-full h-12 transition-colors duration-200">
               <span className="font-bold text-white">
                 Continuar

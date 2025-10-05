@@ -14,10 +14,11 @@
     --input: 214.3 31.8% 91.4%;
     --card: transparent;
     --card-foreground: 222.2 47.4% 11.2%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+  /* primary/secondary set to orange tones so all buttons appear orange */
+  --primary: 24 100% 48%; /* orange */
+  --primary-foreground: 0 0% 100%; /* white text on orange */
+  --secondary: 24 90% 72%; /* lighter orange for secondary buttons */
+  --secondary-foreground: 24 20% 12%; /* dark text on lighter orange */
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 100% 50%;
@@ -39,10 +40,11 @@
     --input: 216 34% 17%;
     --card: transparent;
     --card-foreground: 213 31% 91%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 1.2%;
-    --secondary: 222.2 47.4% 11.2%;
-    --secondary-foreground: 210 40% 98%;
+  /* dark theme: also keep primary orange but adjust contrast */
+  --primary: 24 100% 60%;
+  --primary-foreground: 0 0% 6%;
+  --secondary: 24 90% 50%;
+  --secondary-foreground: 0 0% 100%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
     --ring: 216 34% 17%;

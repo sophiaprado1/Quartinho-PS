@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Users, Home, ArrowRight } from "lucide-react";
 import { Button } from "../../components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 export const UserPreference = (): JSX.Element => {
   const [selectedOption, setSelectedOption] = useState<string>("");
@@ -15,6 +16,17 @@ export const UserPreference = (): JSX.Element => {
       console.log("Opção selecionada:", selectedOption);
       // Navegar para próxima tela ou salvar preferência
     }
+  };
+
+  const navigate = useNavigate();
+
+  const handleContinueNavigate = () => {
+    if (!selectedOption) return;
+    if (selectedOption === "roommate") {
+      navigate("/add-property");
+      return;
+    }
+    handleContinue();
   };
 
   return (
@@ -34,7 +46,10 @@ export const UserPreference = (): JSX.Element => {
         <div className="space-y-4 mb-12">
           {/* Option 1 - Procurando colega de quarto */}
           <button
-            onClick={() => handleOptionSelect("roommate")}
+            onClick={() => {
+              handleOptionSelect("roommate");
+              navigate("/add-property");
+            }}
             className={`w-full p-6 rounded-2xl border-2 transition-all duration-200 flex items-center justify-between ${
               selectedOption === "roommate"
                 ? "border-orange-500 bg-orange-50"
@@ -117,7 +132,7 @@ export const UserPreference = (): JSX.Element => {
 
         {/* Continue Button */}
         <Button
-          onClick={handleContinue}
+          onClick={handleContinueNavigate}
           disabled={!selectedOption}
           className={`w-full h-14 rounded-full text-lg font-bold transition-all duration-200 ${
             selectedOption
