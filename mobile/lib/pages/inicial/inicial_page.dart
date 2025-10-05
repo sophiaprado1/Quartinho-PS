@@ -1,18 +1,22 @@
-import 'dart:typed_data';
+// inicial_page.dart
+// ignore_for_file: use_build_context_synchronously
 
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../imoveis/criar_imoveis_page.dart';
 
 class InicialPage extends StatefulWidget {
   final String name; // nome completo do usuário
   final String city;
-  final Uint8List? avatarBytes; // <-- avatar opcional vindo do signup
+  final Uint8List? avatarBytes; // avatar opcional vindo do signup
 
   const InicialPage({
     super.key,
     required this.name,
     required this.city,
-    this.avatarBytes, // <-- ligado ao construtor corretamente
+    this.avatarBytes,
   });
 
   @override
@@ -24,15 +28,16 @@ class _InicialPageState extends State<InicialPage> {
   int _selectedCategory = 0;
   int _navIndex = 0;
 
+  // lista dinâmica com os imóveis criados agora
+  final List<Map<String, dynamic>> _meusAnuncios = [];
+
   // Primeiro nome para o header ("Oi, ...!")
   String get _firstName {
     final n = widget.name.trim();
     if (n.isEmpty) return 'usuário';
     final parts = n.split(RegExp(r'\s+'));
     final first = parts.first;
-    return first.isEmpty
-        ? 'usuário'
-        : first[0].toUpperCase() + first.substring(1);
+    return first.isEmpty ? 'usuário' : first[0].toUpperCase() + first.substring(1);
   }
 
   TextStyle get _h2 => GoogleFonts.poppins(
@@ -40,6 +45,35 @@ class _InicialPageState extends State<InicialPage> {
         fontWeight: FontWeight.w600,
         color: const Color(0xFF1B1D28),
       );
+
+  Future<void> _abrirCriarImovel() async {
+    // Passe o firstName para a tela de criação só para saudação
+    final novo = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute(builder: (_) => CriarImoveisPage(firstName: _firstName)),
+    );
+
+    if (novo != null) {
+      // garanta um 'tipo' para a tag do card
+      final tipoImovel = (novo['tipo_imovel'] ?? '').toString(); // apartamento|casa|kitnet
+      final tipo = {
+        'apartamento': 'Apartamento',
+        'casa': 'Casa',
+        'kitnet': 'Kitnet',
+      }[tipoImovel] ?? (novo['tipo']?.toString() ?? 'Anúncio');
+
+      setState(() {
+        _meusAnuncios.insert(0, {
+          ...novo,
+          'tipo': tipo, // para o _Tag do card
+        });
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Imóvel adicionado à seção "Meus anúncios".')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,10 +85,22 @@ class _InicialPageState extends State<InicialPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Header(name: _firstName, avatarBytes: widget.avatarBytes), // <-- passa avatar
+              _Header(
+                name: _firstName,
+                avatarBytes: widget.avatarBytes,
+                onAdd: _abrirCriarImovel,
+              ),
               const SizedBox(height: 16),
               _LocationAndProfile(city: widget.city),
               const SizedBox(height: 20),
+
+              if (_meusAnuncios.isNotEmpty) ...[
+                const _SectionHeader(title: 'Meus anúncios'),
+                const SizedBox(height: 10),
+                _MeusAnunciosList(items: _meusAnuncios),
+                const SizedBox(height: 20),
+              ],
+
               const _SearchBar(),
               const SizedBox(height: 14),
               _CategoryChips(
@@ -99,12 +145,15 @@ class _InicialPageState extends State<InicialPage> {
   }
 }
 
-/// ===================== HEADER ===================== ///
+/// ===================== HEADER / LISTAS / WIDGETS =====================
+/// (iguais aos seus, só mantive aqui para ficar completo)
+
 class _Header extends StatelessWidget {
   final String name; // primeiro nome
   final Uint8List? avatarBytes; // bytes do avatar (opcional)
+  final VoidCallback onAdd;
 
-  const _Header({required this.name, this.avatarBytes});
+  const _Header({required this.name, this.avatarBytes, required this.onAdd});
 
   String _initials(String n) {
     final parts = n.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
@@ -147,8 +196,13 @@ class _Header extends StatelessWidget {
             top: 16,
             right: 20,
             child: Row(
-              // NÃO usar lista const aqui, porque o avatar é dinâmico
               children: [
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: onAdd,
+                  tooltip: 'Adicionar imóvel',
+                ),
+                const SizedBox(width: 6),
                 const Icon(Icons.notifications_none_rounded),
                 const SizedBox(width: 10),
                 CircleAvatar(
@@ -186,7 +240,128 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// ================= LOCATION + PROFILE ================= ///
+// --- Abaixo mantive exatamente como no seu post para ficar 100% plugável ---
+class _MeusAnunciosList extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  const _MeusAnunciosList({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 150,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemBuilder: (context, index) => _MeuAnuncioCard(dados: items[index]),
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemCount: items.length,
+      ),
+    );
+  }
+}
+
+class _MeuAnuncioCard extends StatelessWidget {
+  final Map<String, dynamic> dados;
+  const _MeuAnuncioCard({required this.dados});
+
+  @override
+  Widget build(BuildContext context) {
+    final titulo = (dados['titulo'] ?? '').toString().trim();
+    final endereco = (dados['endereco'] ?? 'Seu novo imóvel') as String;
+    final preco = (dados['preco'] ?? '').toString();
+    final periodicidade = (dados['periodicidade'] ?? 'mensal') as String;
+    final tag = (dados['tipo'] ?? dados['categoria'] ?? 'Anúncio').toString();
+
+    File? thumb;
+    final fotos = (dados['fotos_paths'] as List?)?.cast<String>() ?? const [];
+    if (fotos.isNotEmpty) {
+      thumb = File(fotos.first);
+    }
+
+    return Container(
+      width: 220,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF000000).withValues(alpha: .06),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              bottomLeft: Radius.circular(20),
+            ),
+            child: thumb != null
+                ? Image.file(thumb, width: 90, height: 150, fit: BoxFit.cover)
+                : Container(
+                    width: 90,
+                    height: 150,
+                    color: const Color(0xFFEFEFF5),
+                    child: const Icon(Icons.home_work_outlined),
+                  ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _Tag(text: tag),
+
+                  // --- TÍTULO DO ANÚNCIO ---
+                  if (titulo.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      titulo,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+
+                  // --- ENDEREÇO (um pouco menor) ---
+                  const SizedBox(height: 4),
+                  Text(
+                    endereco,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                      height: 1.2,
+                    ),
+                  ),
+
+                  // --- PREÇO ---
+                  Text(
+                    periodicidade == 'mensal' ? '$preco/mês' : '$preco/ano',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
 class _LocationAndProfile extends StatelessWidget {
   final String city;
   const _LocationAndProfile({required this.city});
@@ -251,7 +426,6 @@ class _LocationAndProfile extends StatelessWidget {
   }
 }
 
-/// ===================== SEARCH ===================== ///
 class _SearchBar extends StatelessWidget {
   const _SearchBar();
 
@@ -299,7 +473,6 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-/// ===================== CATEGORIES ===================== ///
 class _CategoryChips extends StatelessWidget {
   const _CategoryChips({
     required this.categories,
@@ -357,7 +530,6 @@ class _CategoryChips extends StatelessWidget {
   }
 }
 
-/// ===================== FEATURED CARDS ===================== ///
 class _FeaturedCarousel extends StatelessWidget {
   const _FeaturedCarousel();
 
@@ -458,7 +630,6 @@ class _FeaturedCard extends StatelessWidget {
   }
 }
 
-/// ===================== SECTION HEADER ===================== ///
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, this.action});
   final String title;
@@ -490,7 +661,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// ===================== RECENT HORIZONTAL ===================== ///
 class _RecentList extends StatelessWidget {
   const _RecentList();
 
@@ -541,7 +711,7 @@ class _RecentCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF000000).withValues(alpha: 0.06),
+            color: const Color(0xFF000000).withValues(alpha: .06),
             blurRadius: 10,
             offset: const Offset(0, 6),
           )
@@ -620,7 +790,6 @@ class _Tag extends StatelessWidget {
   }
 }
 
-/// ===================== POPULAR PLACES ===================== ///
 class _PopularPlaces extends StatelessWidget {
   const _PopularPlaces();
 
@@ -669,14 +838,13 @@ class _PopularPlaces extends StatelessWidget {
   }
 }
 
-/// ===================== NEARBY GRID ===================== ///
 class _NearbyGrid extends StatelessWidget {
   const _NearbyGrid();
 
   final List<_Property> items = const [
     _Property(
       title: 'Condomínio das Rosas',
-      image: 'https://images.unsplash.com/photo-1505691723518-36a5ac3b2d94?w=1200',
+      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200',
       price: 'R\$ 1500/mês',
       rating: 4.9,
       distance: '300m',
@@ -690,7 +858,7 @@ class _NearbyGrid extends StatelessWidget {
     ),
     _Property(
       title: 'Casa de 2 quartos',
-      image: 'https://images.unsplash.com/photo-1565182999561-18d7f0ae79f0?w=1200',
+      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200',
       price: 'R\$ 1235/mês',
       rating: 4.7,
       distance: '1.9km',
