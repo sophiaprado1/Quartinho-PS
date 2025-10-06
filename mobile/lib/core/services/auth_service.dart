@@ -21,23 +21,26 @@ class AuthService {
   }
 
   static Future<String?> login({
-    required String username,
+    required String email,
     required String senha,
   }) async {
-    final url = Uri.parse('$baseUrl/token/');
+    final url = Uri.parse('$baseUrl/usuarios/login/');
     print('Enviando login para: ' + url.toString());
-    print('Body: ' + jsonEncode({'username': username, 'password': senha}));
+    print('Body: ' + jsonEncode({'email': email, 'password': senha}));
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': username, 'password': senha}),
+        body: jsonEncode({'email': email, 'password': senha}),
       );
       print('Status code: ' + response.statusCode.toString());
       print('Response body: ' + response.body);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final token = data['access'];
+        // backend retorna tokens.access
+        final token = (data['tokens'] != null)
+            ? data['tokens']['access']
+            : data['access'];
         // Salva o token localmente para login automático
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('jwt_token', token);
@@ -49,5 +52,39 @@ class AuthService {
       print('Erro na requisição de login: $e');
       throw e.toString();
     }
+  }
+
+  static Future<Map<String, dynamic>?> me({required String token}) async {
+    final url = Uri.parse('$baseUrl/usuarios/me/');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Erro ao buscar /me: $e');
+      return null;
+    }
+  }
+
+  
+
+  // Lê o token salvo localmente
+  static Future<String?> getSavedToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('jwt_token');
+  }
+
+  // Limpa o token e efetua logout
+  static Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('jwt_token');
   }
 }

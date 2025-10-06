@@ -5,15 +5,15 @@ import 'package:mobile/pages/location/location_page.dart';
 class ChooseRolePage extends StatelessWidget {
   final String name;
   final String email;
-  final String cpf;            // 👈 novo
-  final DateTime birthDate;    // 👈 novo
+  final String? cpf;            // opcional
+  final DateTime? birthDate;    // opcional
 
   const ChooseRolePage({
     super.key,
     required this.name,
     required this.email,
-    required this.cpf,         // 👈 novo
-    required this.birthDate,   // 👈 novo
+    this.cpf,
+    this.birthDate,
   });
 
   static const Color bgPage = Color(0xFFF3F4F7);
@@ -86,8 +86,8 @@ class ChooseRolePage extends StatelessWidget {
                                   builder: (_) => LocationPage(
                                     name: name,
                                     email: email,
-                                    cpf: cpf,                 // 👈 novo
-                                    birthDate: birthDate,     // 👈 novo
+                                    cpf: cpf,
+                                    birthDate: birthDate,
                                   ),
                                 ),
                               );

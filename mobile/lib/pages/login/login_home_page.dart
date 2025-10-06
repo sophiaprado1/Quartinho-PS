@@ -17,10 +17,11 @@ class LoginHomePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(),
-          child: Column(
-            children: [
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.only(),
+            child: Column(
+              children: [
               Padding(
                 padding: EdgeInsets.only(top: 150, bottom: 26),
                 child: LoginImageHome(img: _img,),
@@ -109,6 +110,7 @@ class LoginHomePage extends StatelessWidget {
                 ],
               ),
             ],
+            ),
           ),
         ),
       ),

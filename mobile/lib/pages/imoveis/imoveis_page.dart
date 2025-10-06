@@ -40,17 +40,14 @@ class _ImoveisPageState extends State<ImoveisPage> {
   Future<void> fetchUserFirstName() async {
     try {
       final response = await http.get(
-        Uri.parse('$backendHost/api/locadores/'),
+        Uri.parse('$backendHost/usuarios/me/'),
         headers: {'Authorization': 'Bearer ${widget.token}'},
       );
       if (response.statusCode == 200) {
-        final List users = json.decode(utf8.decode(response.bodyBytes));
-        // Busca o usuário logado pelo token (normalmente só retorna 1)
-        if (users.isNotEmpty) {
-          setState(() {
-            firstName = users[0]['first_name'] ?? '';
-          });
-        }
+        final Map<String, dynamic> user = json.decode(utf8.decode(response.bodyBytes));
+        setState(() {
+          firstName = (user['username'] ?? '') as String?;
+        });
       }
     } catch (e) {
       print('Erro ao buscar first_name: $e');
@@ -59,7 +56,7 @@ class _ImoveisPageState extends State<ImoveisPage> {
 
   Future<void> fetchImoveis() async {
     final response = await http.get(
-      Uri.parse('$backendHost/api/imoveis/'),
+      Uri.parse('$backendHost/propriedades/propriedades/'),
       headers: {'Authorization': 'Bearer ${widget.token}'},
     );
     if (response.statusCode == 200) {

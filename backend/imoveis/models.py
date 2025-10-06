@@ -59,7 +59,7 @@ class FotoImovel(models.Model):
 
     imovel = models.ForeignKey(Imovel, related_name='fotos', on_delete=models.CASCADE)
     
-    imagem = models.ImageField(upload_to='fotos_imoveis/')
+    imagem = models.FileField(upload_to='fotos_imoveis/')
 
     def __str__(self):
         return f"Foto de {self.imovel.titulo}"

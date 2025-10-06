@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 // ignore: unused_import
 import 'package:mobile/pages/choose_role/choose_role_page.dart';
+import 'package:mobile/pages/login/login.dart';
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -237,23 +238,15 @@ class _SignUpPageState extends State<SignUpPage> {
                             borderRadius: BorderRadius.circular(28),
                           ),
                         ),
-onPressed: () {
-  if (_formKey.currentState!.validate()) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChooseRolePage(
-          name: _nameCtrl.text,
-          email: _emailCtrl.text,
-          // se quiser já levar CPF e birthDate, pode também:
-          cpf: _cpfCtrl.text,
-          birthDate: _birthDate!, // <-- sem ternário
-
-        ),
-      ),
-    );
-  }
-},
+                        onPressed: () {
+                          if (_formKey.currentState!.validate()) {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (_) => const Login()),
+                              (route) => false,
+                            );
+                          }
+                        },
                         child: Text(
                           'Registre-se!',
                           style: GoogleFonts.lato(
