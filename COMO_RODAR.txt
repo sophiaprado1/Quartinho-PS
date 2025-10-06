@@ -1,0 +1,49 @@
+Guia de execução (Windows)
+
+Estrutura do projeto
+- backend/: API em Django (DRF, JWT, CORS)
+- frontend/: Aplicação React (Vite)
+
+Pré-requisitos
+- Python 3.10+ e pip
+- Node.js 18+ e npm
+- PowerShell como terminal
+
+Backend (Django)
+1) Abra o terminal na pasta do projeto:
+   cd Quartinho-PS\backend
+2) Crie e ative o ambiente virtual:
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+3) Instale as dependências:
+   pip install -r requirements.txt
+4) Aplique as migrações do banco:
+   python manage.py migrate
+5) (Opcional) Crie um superusuário:
+   python manage.py createsuperuser
+6) Inicie o servidor:
+   python manage.py runserver
+   O backend ficará disponível em http://localhost:8000/
+
+Frontend (React + Vite)
+1) Abra outro terminal e vá para a pasta frontend:
+   cd frontend
+2) Instale as dependências:
+   npm install
+3) Inicie o servidor de desenvolvimento:
+   npm run dev
+   A aplicação abrirá em http://localhost:5173/ (ou porta indicada no terminal)
+
+Configuração da API no frontend
+- Verifique o arquivo: frontend/src/utils/apiConfig.ts
+- Confirme que está definido:
+  export const API_BASE_URL = 'http://localhost:8000';
+- Se o backend rodar em outra URL/porta, ajuste esse valor.
+
+Dicas
+- Se encontrar erro de CORS, confirme que o backend está com corsheaders instalado e configurado em MIDDLEWARE e ALLOWED_HOSTS/ORIGINS.
+- Banco de dados padrão é SQLite (db.sqlite3). Não precisa instalar drivers adicionais.
+
+Problemas comuns
+- "command not found" ao ativar venv: use PowerShell e o caminho .\.venv\Scripts\Activate.ps1
+- Porta diferente no Vite: sempre confira a porta mostrada no terminal após npm run dev.
