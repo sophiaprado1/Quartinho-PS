@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import action
+from django.db.models import Q
 from .models import Propriedade, FotoPropriedade
 from .serializers import PropriedadeSerializer, FotoPropriedadeSerializer
 from .permissions import IsOwnerOrReadOnly
@@ -22,18 +23,33 @@ class PropriedadeViewSet(viewsets.ModelViewSet):
 
         params = self.request.query_params
 
+        # Busca genérica por vários campos
+        q = params.get('q')
+        if q is not None:
+            sq = str(q).strip()
+            if sq:
+                queryset = queryset.filter(
+                    Q(titulo__icontains=sq) |
+                    Q(descricao__icontains=sq) |
+                    Q(cidade__icontains=sq) |
+                    Q(estado__icontains=sq) |
+                    Q(tipo__icontains=sq) |
+                    Q(proprietario__username__icontains=sq) |
+                    Q(proprietario__email__icontains=sq)
+                )
+
         # Filtrar por tipo de propriedade
         tipo = params.get('tipo')
         if tipo:
             queryset = queryset.filter(tipo=tipo)
 
-        # Filtrar por faixa de preço
+        # Filtrar por faixa de preço (ignorar valores vazios)
         preco_min = params.get('preco_min')
-        if preco_min is not None:
+        if preco_min:
             queryset = queryset.filter(preco__gte=preco_min)
 
         preco_max = params.get('preco_max')
-        if preco_max is not None:
+        if preco_max:
             queryset = queryset.filter(preco__lte=preco_max)
 
         # Filtrar por cidade
@@ -48,20 +64,25 @@ class PropriedadeViewSet(viewsets.ModelViewSet):
 
         # Filtrar por quartos (min/max)
         quartos_min = params.get('quartos_min')
-        if quartos_min is not None:
+        if quartos_min:
             queryset = queryset.filter(quartos__gte=quartos_min)
         quartos_max = params.get('quartos_max')
-        if quartos_max is not None:
+        if quartos_max:
             queryset = queryset.filter(quartos__lte=quartos_max)
 
-        # Filtros booleanos
+        # Filtros booleanos (ignorar valores vazios/indefinidos)
         def parse_bool(val):
             return str(val).lower() in {"true", "1", "yes", "sim"}
 
         for field in ["mobiliado", "aceita_pets", "internet", "estacionamento"]:
             val = params.get(field)
-            if val is not None:
-                queryset = queryset.filter(**{field: parse_bool(val)})
+            # Ignorar quando o parâmetro vier vazio ou como 'null'/'undefined'
+            if val is None:
+                continue
+            sval = str(val).strip().lower()
+            if sval in {"", "null", "undefined"}:
+                continue
+            queryset = queryset.filter(**{field: parse_bool(val)})
 
         # Ordenação com whitelist
         ordering = params.get('ordering')

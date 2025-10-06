@@ -4,7 +4,6 @@ import { Button } from "../../components/ui/button";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/apiConfig";
-import { getUserData } from "../../utils/auth";
 
 export const UserPreference = (): JSX.Element => {
   const [selectedOption, setSelectedOption] = useState<string>("");
@@ -24,7 +23,6 @@ export const UserPreference = (): JSX.Element => {
       setError("");
       
       try {
-        const userData = getUserData();
         const token = localStorage.getItem('access_token');
         
         // Salvar a preferência do usuário no backend

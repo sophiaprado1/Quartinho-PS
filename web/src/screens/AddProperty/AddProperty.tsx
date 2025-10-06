@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import StepBasicInfo from "./steps/StepBasicInfo";
 import StepPhotos from "./steps/StepPhotos";
 import StepLocation from "./steps/StepLocation";
@@ -8,11 +8,12 @@ import StepReview from "./steps/StepReview";
 import { Button } from "../../components/ui/button";
 import { FormState, initialForm } from "./types";
 import axios from "axios";
-import { API_BASE_URL } from "../../utils/apiConfig";
-import { getUserData } from "../../utils/auth";
+import { API_BASE_URL, getAuthHeaders, getAuthFileHeaders } from "../../utils/apiConfig";
+import { getUserData, clearAuth } from "../../utils/auth";
 
 const AddProperty = (): JSX.Element => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState<FormState>(initialForm);
   const [formErrors, setFormErrors] = useState<{ price?: string }>({});
   const [photos, setPhotos] = useState<File[]>([]);
@@ -23,6 +24,51 @@ const AddProperty = (): JSX.Element => {
 
   const next = () => setStep((s) => Math.min(s + 1, 4));
   const back = () => (step === 0 ? navigate(-1) : setStep((s) => Math.max(s - 1, 0)));
+
+  // Habilitar modo edição via query ?edit=id
+  const editId = useMemo(() => {
+    const e = searchParams.get('edit');
+    return e ? parseInt(e) : null;
+  }, [searchParams]);
+
+  useEffect(() => {
+    const loadForEdit = async () => {
+      if (!editId) return;
+      try {
+        const r = await axios.get(`${API_BASE_URL}/propriedades/propriedades/${editId}/`, {
+          headers: getAuthHeaders(),
+        });
+        const p = r.data;
+        // mapear API -> form
+        setForm({
+          title: p.titulo,
+          description: p.descricao,
+          listingType: 'Aluguel',
+          priceFrequency: 'monthly',
+          price: String(p.preco),
+          propertyType: p.tipo.charAt(0).toUpperCase() + p.tipo.slice(1),
+          rooms: p.quartos,
+          bathrooms: p.banheiros,
+          balconies: 0,
+          address: p.endereco ?? `${p.cidade}, ${p.estado}`,
+          latitude: undefined,
+          longitude: undefined,
+          amenities: [
+            ...(p.mobiliado ? ['Mobiliado'] : []),
+            ...(p.internet ? ['Wi-fi'] : []),
+            ...(p.estacionamento ? ['Estacionamento'] : []),
+          ],
+          tags: [
+            ...(p.aceita_pets ? ['Pet Friendly'] : []),
+          ],
+        });
+      } catch (e) {
+        console.error('Falha ao carregar propriedade para edição:', e);
+        setError('Não foi possível carregar dados para edição.');
+      }
+    };
+    loadForEdit();
+  }, [editId]);
 
   const handlePublish = async () => {
     setLoading(true);
@@ -97,17 +143,18 @@ const AddProperty = (): JSX.Element => {
       
       console.log("Dados da propriedade a serem enviados:", propertyData);
       
-      // Enviar dados da propriedade
-      const propertyResponse = await axios.post(
-        `${API_BASE_URL}/propriedades/propriedades/`, 
-        propertyData,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      // Criar ou atualizar
+      const propertyResponse = editId
+        ? await axios.patch(
+            `${API_BASE_URL}/propriedades/propriedades/${editId}/`,
+            propertyData,
+            { headers: getAuthHeaders() }
+          )
+        : await axios.post(
+            `${API_BASE_URL}/propriedades/propriedades/`,
+            propertyData,
+            { headers: getAuthHeaders() }
+          );
       
       // Se houver fotos, enviar cada uma
       if (photos.length > 0) {
@@ -123,12 +170,7 @@ const AddProperty = (): JSX.Element => {
           await axios.post(
             `${API_BASE_URL}/propriedades/propriedades/${propertyId}/upload_fotos/`, 
             formData,
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'multipart/form-data'
-              }
-            }
+            { headers: getAuthFileHeaders() }
           );
         }
       }
@@ -183,9 +225,15 @@ const AddProperty = (): JSX.Element => {
     <div className="min-h-screen bg-gray-50 flex items-start justify-center py-12 px-6">
       <div className="w-full max-w-4xl">
         <header className="mb-8">
-          <div>
-            <div className="text-sm text-gray-600">Adicionar listagem</div>
-            <h1 className="text-3xl font-semibold text-gray-900">Estamos quase lá! Adicione mais detalhes</h1>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600">{editId ? 'Editar listagem' : 'Adicionar listagem'}</div>
+              <h1 className="text-3xl font-semibold text-gray-900">Estamos quase lá! Adicione mais detalhes</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" className="rounded-full" onClick={() => navigate('/properties')}>Ver propriedades</Button>
+              <Button variant="secondary" className="rounded-full" onClick={() => { clearAuth(); navigate('/email-login'); }}>Logout</Button>
+            </div>
           </div>
         </header>
 
@@ -200,14 +248,19 @@ const AddProperty = (): JSX.Element => {
             <div className="hidden lg:block">
               <nav className="space-y-4 sticky top-6">
                 {stepTitles.map((t, i) => (
-                  <div key={t} className={`p-3 rounded-xl ${i === step ? "bg-orange-50" : "bg-white"}`}>
+                  <button
+                    type="button"
+                    key={t}
+                    onClick={() => setStep(i)}
+                    className={`w-full text-left p-3 rounded-xl ${i === step ? "bg-orange-50" : "bg-white"}`}
+                  >
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${i === step ? "bg-orange-500 text-white" : i < step ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"}`}>
                         {i + 1}
                       </div>
                       <div className="text-sm text-gray-700">{t}</div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </nav>
             </div>
@@ -262,6 +315,8 @@ const AddProperty = (): JSX.Element => {
           </div>
         </div>
       </div>
+        {/* Navegação lateral clicável */}
+        {/* já renderizada acima; tornar itens clicáveis */}
         {showSuccess && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/80 z-40" />
@@ -284,7 +339,7 @@ const AddProperty = (): JSX.Element => {
                 <h3 className="text-xl font-semibold">Anúncio publicado</h3>
                 <p className="text-center text-sm text-gray-600">Seu imóvel foi publicado com sucesso e já está visível para potenciais interessados.</p>
                 <div className="w-full flex justify-center">
-                  <Button onClick={() => navigate('/')} className="rounded-full bg-orange-500 text-white px-8">Ir para início</Button>
+                  <Button onClick={() => navigate('/properties')} className="rounded-full bg-orange-500 text-white px-8">Ir para propriedades</Button>
                 </div>
               </div>
             </div>

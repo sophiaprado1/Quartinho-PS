@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
-import { Search, Filter, MapPin, Heart, Star, Bed, Bath, Car, Wifi } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, MapPin, Heart, Star, Bed, Bath, Car, Wifi } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import axios from "axios";
-import { API_BASE_URL } from "../../utils/apiConfig";
+import { API_BASE_URL, getAuthHeaders } from "../../utils/apiConfig";
+import { getUserData, clearAuth } from "../../utils/auth";
 
 interface Property {
   id: number;
+  proprietario: number;
   titulo: string;
   descricao: string;
   tipo: string;
@@ -28,6 +31,7 @@ interface Property {
 }
 
 export const Properties = (): JSX.Element => {
+  const navigate = useNavigate();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,21 +40,32 @@ export const Properties = (): JSX.Element => {
     tipo: "",
     preco_min: "",
     preco_max: "",
-    cidade: ""
+    cidade: "",
+    q: ""
   });
+  const [onlyMine, setOnlyMine] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   useEffect(() => {
+    const ud = getUserData();
+    setCurrentUserId(ud?.id ?? null);
     fetchProperties();
-  }, [filters]); // Adiciona filters como dependência para refazer a busca quando os filtros mudarem
+  }, [filters, onlyMine]); // refazer a busca quando filtros ou "só minhas" mudarem
 
   const fetchProperties = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await axios.get(`${API_BASE_URL}/propriedades/propriedades/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        params: filters
+      const url = onlyMine
+        ? `${API_BASE_URL}/propriedades/propriedades/minhas_propriedades/`
+        : `${API_BASE_URL}/propriedades/propriedades/`;
+
+      // Enviar apenas filtros com valores preenchidos
+      const cleanParams = Object.fromEntries(
+        Object.entries(filters).filter(([_, v]) => v !== "" && v !== null && v !== undefined)
+      );
+
+      const response = await axios.get(url, {
+        headers: getAuthHeaders(),
+        params: onlyMine ? undefined : cleanParams,
       });
       setProperties(response.data);
     } catch (error) {
@@ -62,7 +77,7 @@ export const Properties = (): JSX.Element => {
   };
 
   const handleSearch = () => {
-    setFilters(prev => ({ ...prev, cidade: searchTerm }));
+    setFilters(prev => ({ ...prev, q: searchTerm, cidade: "" }));
   };
 
   const handleFilterChange = (key: string, value: string) => {
@@ -100,6 +115,28 @@ export const Properties = (): JSX.Element => {
           <h1 className="text-3xl font-bold text-gray-900 mb-6">
             Encontre seu quarto ideal
           </h1>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 mb-4">
+            <Button onClick={() => navigate('/add-property')} className="bg-orange-500 hover:bg-orange-600 px-4">
+              Adicionar imóvel
+            </Button>
+            <Button
+              variant={onlyMine ? 'default' : 'secondary'}
+              onClick={() => setOnlyMine((v) => !v)}
+              className="px-4"
+            >
+              {onlyMine ? 'Exibindo só minhas' : 'Minhas propriedades'}
+            </Button>
+            <div className="ml-auto" />
+            <Button
+              variant="secondary"
+              onClick={() => { clearAuth(); navigate('/email-login'); }}
+              className="px-4"
+            >
+              Logout
+            </Button>
+          </div>
           
           {/* Search Bar */}
           <div className="flex gap-4 mb-4">
@@ -233,6 +270,36 @@ export const Properties = (): JSX.Element => {
                       <span className="text-sm text-gray-600 ml-1">4.8</span>
                     </div>
                   </div>
+
+                  {/* Owner actions */}
+                  {currentUserId && property.proprietario === currentUserId && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <Button
+                        variant="secondary"
+                        className="px-3"
+                        onClick={() => navigate(`/add-property?edit=${property.id}`)}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        className="px-3"
+                        onClick={async () => {
+                          try {
+                            await axios.delete(`${API_BASE_URL}/propriedades/propriedades/${property.id}/`, {
+                              headers: getAuthHeaders(),
+                            });
+                            setProperties((prev) => prev.filter((p) => p.id !== property.id));
+                          } catch (err) {
+                            console.error('Erro ao excluir propriedade:', err);
+                            setError('Não foi possível excluir a propriedade.');
+                          }
+                        }}
+                      >
+                        Excluir
+                      </Button>
+                    </div>
+                  )}
 
                   <div className="flex items-center text-gray-600 mb-3">
                     <MapPin className="w-4 h-4 mr-1" />
