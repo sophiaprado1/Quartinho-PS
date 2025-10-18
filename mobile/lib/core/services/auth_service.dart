@@ -4,7 +4,9 @@ import 'package:mobile/core/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = backendHost;
+  // Use a runtime getter so the `backendHost` selection logic (web/emulator/device)
+  // is evaluated at runtime instead of trying to assign it to a compile-time const.
+  static String get baseUrl => backendHost;
 
   static Future<bool> cadastrar({
     required String nome,
@@ -20,7 +22,9 @@ class AuthService {
     return response.statusCode == 201;
   }
 
-  static Future<String?> login({
+  /// Faz login e retorna um mapa com 'token' e opcionalmente 'user'
+  /// Exemplo de retorno: {'token': '<jwt>', 'user': {...}}
+  static Future<Map<String, dynamic>?> login({
     required String email,
     required String senha,
   }) async {
@@ -36,15 +40,22 @@ class AuthService {
       print('Status code: ' + response.statusCode.toString());
       print('Response body: ' + response.body);
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // backend retorna tokens.access
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        // backend pode retornar tokens or access
         final token = (data['tokens'] != null)
             ? data['tokens']['access']
-            : data['access'];
+            : (data['access'] ?? data['token']);
+
         // Salva o token localmente para login automático
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('jwt_token', token);
-        return token;
+        if (token != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('jwt_token', token);
+        }
+
+        return {
+          'token': token,
+          'user': data['user'],
+        };
       } else {
         throw response.body;
       }

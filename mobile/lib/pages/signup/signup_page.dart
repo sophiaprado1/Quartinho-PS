@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// ignore: unused_import
-import 'package:mobile/pages/choose_role/choose_role_page.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:mobile/core/services/auth_service.dart';
 import 'package:mobile/pages/login/login.dart';
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -22,6 +23,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   DateTime? _birthDate;
   bool showPassword = false;
+  bool _loading = false;
 
   // cores
   static const Color bgPage = Color(0xFFF3F4F7);
@@ -124,6 +126,8 @@ class _SignUpPageState extends State<SignUpPage> {
                     validator: (v) =>
                         v == null || v.isEmpty ? 'Informe seu nome' : null,
                   ),
+                  const SizedBox(height: 12),
+
                   const SizedBox(height: 12),
 
                   // Email
@@ -238,15 +242,59 @@ class _SignUpPageState extends State<SignUpPage> {
                             borderRadius: BorderRadius.circular(28),
                           ),
                         ),
-                        onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(builder: (_) => const Login()),
-                              (route) => false,
-                            );
-                          }
-                        },
+                        onPressed: _loading
+                            ? null
+                            : () async {
+                                if (!_formKey.currentState!.validate()) return;
+                                setState(() => _loading = true);
+
+                                final url = '${AuthService.baseUrl}/usuarios/usercreate/';
+                                  final payload = {
+                                  'nome_completo': _nameCtrl.text.trim(),
+                                  'email': _emailCtrl.text.trim(),
+                                  'password': _passwordCtrl.text,
+                                  'cpf': _cpfCtrl.text.trim(),
+                                  'data_nascimento': _birthDate != null
+                                      ? '${_birthDate!.year.toString().padLeft(4, '0')}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}'
+                                      : null,
+                                }..removeWhere((k, v) => v == null);
+
+                                try {
+                                  final resp = await http.post(
+                                    Uri.parse(url),
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: jsonEncode(payload),
+                                  );
+
+                                  setState(() => _loading = false);
+
+                                  if (resp.statusCode >= 200 && resp.statusCode < 300) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Cadastro realizado com sucesso. Faça login.')),
+                                    );
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const Login()),
+                                      (route) => false,
+                                    );
+                                  } else {
+                                    String msg = 'Erro ao cadastrar usuário';
+                                    try {
+                                      final data = jsonDecode(resp.body);
+                                      if (data is Map && data['detail'] != null) msg = data['detail'].toString();
+                                      else if (data is Map) msg = data.values.map((e) => e.toString()).join('\n');
+                                    } catch (_) {}
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(msg)),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setState(() => _loading = false);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Erro de rede. Verifique sua conexão.')),
+                                  );
+                                }
+                              },
                         child: Text(
                           'Registre-se!',
                           style: GoogleFonts.lato(

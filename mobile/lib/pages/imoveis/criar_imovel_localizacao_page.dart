@@ -14,6 +14,9 @@ class CriarImovelLocalizacaoPage extends StatefulWidget {
 
 class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage> {
   final _enderecoCtrl = TextEditingController();
+  final _cidadeCtrl = TextEditingController();
+  final _estadoCtrl = TextEditingController();
+  final _cepCtrl = TextEditingController();
 
   static const Color _bgPage = Color(0xFFF3F4F7);
   static const Color _accent = Color(0xFFFF8A34);
@@ -24,13 +27,35 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
   @override
   void dispose() {
     _enderecoCtrl.dispose();
+    _cidadeCtrl.dispose();
+    _estadoCtrl.dispose();
+    _cepCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _irParaFotos() async {
+    // Validações básicas
     if (_enderecoCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Informe o endereço do imóvel.')),
+      );
+      return;
+    }
+    if (_cidadeCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe a cidade.')),
+      );
+      return;
+    }
+    if (_estadoCtrl.text.trim().isEmpty || _estadoCtrl.text.trim().length != 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe a UF com 2 letras (ex: GO).')),
+      );
+      return;
+    }
+    if (_cepCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe o CEP.')),
       );
       return;
     }
@@ -38,6 +63,9 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
     final parcial = {
       ...widget.dadosIniciais,
       'endereco': _enderecoCtrl.text.trim(),
+      'cidade': _cidadeCtrl.text.trim(),
+      'estado': _estadoCtrl.text.trim().toUpperCase(),
+      'cep': _cepCtrl.text.trim(),
       // se futuramente tiver lat/lng, inclua aqui
     };
 
@@ -132,6 +160,62 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
               const SizedBox(height: 16),
 
               // Mapa "fake" (placeholder visual)
+              const SizedBox(height: 12),
+              // Cidade / Estado / CEP
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      controller: _cidadeCtrl,
+                      style: GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
+                      decoration: InputDecoration(
+                        hintText: 'Cidade',
+                        isDense: true,
+                        filled: true,
+                        fillColor: _pill,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 1,
+                    child: TextField(
+                      controller: _estadoCtrl,
+                      textCapitalization: TextCapitalization.characters,
+                      style: GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
+                      decoration: InputDecoration(
+                        hintText: 'UF',
+                        isDense: true,
+                        filled: true,
+                        fillColor: _pill,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: TextField(
+                      controller: _cepCtrl,
+                      keyboardType: TextInputType.number,
+                      style: GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
+                      decoration: InputDecoration(
+                        hintText: 'CEP',
+                        isDense: true,
+                        filled: true,
+                        fillColor: _pill,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               ClipRRect(
                 borderRadius: BorderRadius.circular(18),
                 child: Container(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/services/auth_service.dart';
-import 'package:mobile/pages/choose_role/choose_role_page.dart';
+import 'package:mobile/pages/inicial/inicial_page.dart';
 
 class ButtonLogin extends StatefulWidget {
   final TextEditingController emailController;
@@ -25,35 +25,39 @@ class _ButtonLoginState extends State<ButtonLogin> {
     final email = widget.emailController.text;
     final senha = widget.senhaController.text;
 
+    // Debug: mostrar qual URL será usada e confirmar que o botão foi pressionado
+    final debugUrl = '${AuthService.baseUrl}/usuarios/login/';
+    print('Botão de login pressionado. Tentando POST para: $debugUrl');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tentando conectar em: $debugUrl')),
+      );
+    }
+
     try {
-      final token = await AuthService.login(email: email, senha: senha);
+      final result = await AuthService.login(email: email, senha: senha);
 
       if (!mounted) return; // Guard context usage
       setState(() => loading = false);
 
-      if (token != null) {
+      if (result != null && result['token'] != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Login realizado com sucesso!')),
         );
-        try {
-          final me = await AuthService.me(token: token);
-          if (!mounted) return; // Guard após segundo await
-          final name = me != null ? (me['username'] ?? me['full_name'] ?? '') : '';
-          final emailMe = me != null ? (me['email'] ?? email) : email;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ChooseRolePage(
-                name: name.isNotEmpty ? name : emailMe.split('@').first,
-                email: emailMe,
-              ),
+
+        final user = result['user'] as Map<String, dynamic>?;
+        final name = user != null ? (user['username'] ?? user['full_name'] ?? '') : '';
+        final emailMe = user != null ? (user['email'] ?? email) : email;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InicialPage(
+              name: name.isNotEmpty ? name : emailMe.split('@').first,
+              city: '', // cidade pode ser preenchida depois pelo usuário/perfil
             ),
-          );
-        } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Falha ao carregar dados do usuário')), // erro de /me
-          );
-        }
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Email ou senha inválidos')),
