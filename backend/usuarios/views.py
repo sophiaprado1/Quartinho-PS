@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import login
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class UsuarioCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
@@ -81,12 +82,69 @@ class UserPreferenceView(APIView):
 
 class UserMeView(APIView):
     permission_classes = [IsAuthenticated]
+    # allow multipart/form-data parsing for PATCH (so request.FILES is populated)
+    parser_classes = [MultiPartParser, FormParser]
 
     def get(self, request):
         user = request.user
+        avatar_url = None
+        try:
+            if getattr(user, 'avatar', None):
+                avatar_url = request.build_absolute_uri(user.avatar.url)
+        except Exception:
+            avatar_url = None
         return Response({
             'id': user.id,
             'email': getattr(user, 'email', None),
             'username': getattr(user, 'username', None),
             'preference': getattr(user, 'preference', None),
+            'cpf': getattr(user, 'cpf', None),
+            'data_nascimento': getattr(user, 'data_nascimento', None),
+            'avatar': avatar_url,
         }, status=status.HTTP_200_OK)
+    
+    def patch(self, request):
+        user = request.user
+        data = request.data or {}
+        # debug: log incoming files and keys to help diagnose avatar upload issues
+        try:
+            print('DEBUG UserMeView.patch - request.FILES keys:', list(request.FILES.keys()))
+            print('DEBUG UserMeView.patch - request.data keys:', list(request.data.keys()))
+        except Exception:
+            pass
+        allowed = ['username', 'email', 'cpf', 'data_nascimento']
+        changed = False
+        for k in allowed:
+            if k in data:
+                setattr(user, k, data.get(k))
+                changed = True
+        # aceitar upload de avatar via multipart
+        if 'avatar' in request.FILES:
+            user.avatar = request.FILES['avatar']
+            changed = True
+        else:
+            # fallback: some clients place files in request.data for certain methods
+            avatar_candidate = data.get('avatar')
+            try:
+                if avatar_candidate is not None and hasattr(avatar_candidate, 'file'):
+                    user.avatar = avatar_candidate
+                    changed = True
+            except Exception:
+                pass
+        if changed:
+            user.save()
+            avatar_url = None
+            try:
+                if user.avatar:
+                    avatar_url = request.build_absolute_uri(user.avatar.url)
+            except Exception:
+                avatar_url = None
+            return Response({
+                'id': user.id,
+                'email': getattr(user, 'email', None),
+                'username': getattr(user, 'username', None),
+                'cpf': getattr(user, 'cpf', None),
+                'data_nascimento': getattr(user, 'data_nascimento', None),
+                'avatar': avatar_url,
+            }, status=status.HTTP_200_OK)
+        return Response({'detail': 'Nenhuma alteração'}, status=status.HTTP_200_OK)
