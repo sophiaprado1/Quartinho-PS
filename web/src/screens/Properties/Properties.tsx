@@ -45,12 +45,24 @@ export const Properties = (): JSX.Element => {
   });
   const [onlyMine, setOnlyMine] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
+
+
 
   useEffect(() => {
     const ud = getUserData();
     setCurrentUserId(ud?.id ?? null);
     fetchProperties();
-  }, [filters, onlyMine]); // refazer a busca quando filtros ou "só minhas" mudarem
+    fetchFavorites();
+
+  if (onlyFavorites) {
+      fetchFavoriteProperties();
+    } else {
+      fetchProperties();
+    }
+
+  }, [filters, onlyMine, onlyFavorites]);
 
   const fetchProperties = async () => {
     try {
@@ -58,7 +70,6 @@ export const Properties = (): JSX.Element => {
         ? `${API_BASE_URL}/propriedades/propriedades/minhas_propriedades/`
         : `${API_BASE_URL}/propriedades/propriedades/`;
 
-      // Enviar apenas filtros com valores preenchidos
       const cleanParams = Object.fromEntries(
         Object.entries(filters).filter(([_, v]) => v !== "" && v !== null && v !== undefined)
       );
@@ -96,6 +107,57 @@ export const Properties = (): JSX.Element => {
     return principalPhoto?.imagem || property.fotos?.[0]?.imagem || '/placeholder-property.jpg';
   };
 
+  const fetchFavorites = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/propriedades/favoritos/`, {
+        headers: getAuthHeaders(),
+      });
+      const ids = response.data.map((prop: Property) => prop.id);
+      setFavoriteIds(new Set(ids));
+    } catch (error) {
+      console.error("Erro ao buscar IDs de favoritos:", error);
+    }
+  };
+
+  const fetchFavoriteProperties = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/propriedades/favoritos/`, {
+        headers: getAuthHeaders(),
+      });
+      setProperties(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar propriedades favoritas:", error);
+      setError("Não foi possível carregar seus favoritos.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleFavorite = async (propertyId: number) => {
+    const newFavoriteIds = new Set(favoriteIds);
+    if (newFavoriteIds.has(propertyId)) {
+      newFavoriteIds.delete(propertyId);
+    } else {
+      newFavoriteIds.add(propertyId);
+    }
+    setFavoriteIds(newFavoriteIds);
+
+    try {
+      await axios.post(
+        `${API_BASE_URL}/propriedades/propriedade/${propertyId}/favoritar/`,
+        {},
+        { headers: getAuthHeaders() }
+      );
+    } catch (error) {
+      console.error("Erro ao favoritar propriedade:", error);
+      // Se der erro, reverte o estado para o original
+      fetchFavorites(); 
+      setError("Não foi possível atualizar seus favoritos.");
+    }
+  };
+
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -128,6 +190,18 @@ export const Properties = (): JSX.Element => {
             >
               {onlyMine ? 'Exibindo só minhas' : 'Minhas propriedades'}
             </Button>
+
+            <Button
+                variant={onlyFavorites ? 'default' : 'secondary'}
+                onClick={() => {
+                  setOnlyFavorites((v) => !v);
+                  setOnlyMine(false);
+                }}
+                className="px-4"
+              >
+                Meus Favoritos
+              </Button>
+
             <div className="ml-auto" />
             <Button
               variant="secondary"
@@ -251,9 +325,20 @@ export const Properties = (): JSX.Element => {
                     alt={property.titulo}
                     className="w-full h-full object-cover"
                   />
-                  <button className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-md hover:bg-gray-50">
-                    <Heart className="w-4 h-4 text-gray-600" />
-                  </button>
+
+                  <button 
+                      onClick={() => handleToggleFavorite(property.id)}
+                      className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-md hover:bg-gray-50"
+                    >
+                      <Heart 
+                        className={`w-4 h-4 transition-colors ${
+                          favoriteIds.has(property.id) 
+                            ? 'text-red-500 fill-current'
+                            : 'text-gray-600'           
+                        }`}
+                      />
+                    </button>
+
                   <div className="absolute bottom-3 left-3 bg-white px-2 py-1 rounded-md text-sm font-medium">
                     {property.tipo}
                   </div>

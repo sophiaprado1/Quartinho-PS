@@ -27,7 +27,8 @@ class Propriedade(models.Model):
     estacionamento = models.BooleanField(default=False)
     data_criacao = models.DateTimeField(auto_now_add=True)
     data_atualizacao = models.DateTimeField(auto_now=True)
-    
+    favoritos = models.ManyToManyField(Usuario, related_name='propriedades_favoritas', blank=True)
+
     def __str__(self):
         return self.titulo
 
