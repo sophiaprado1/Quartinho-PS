@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/services/auth_service.dart';
+import '../../core/constants.dart';
 import 'package:mobile/pages/login/login_home_page.dart';
+import 'package:mobile/pages/profile/edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -45,6 +47,31 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    String? normalizeAvatar(String? url) {
+      if (url == null || url.isEmpty) return null;
+      try {
+        final backendUri = Uri.parse(backendHost);
+        final u = Uri.parse(url);
+        final ts = DateTime.now().millisecondsSinceEpoch.toString();
+        if (!u.hasScheme) {
+          final path = url.startsWith('/') ? url : '/$url';
+          return '${backendHost}${path}?t=$ts';
+        }
+        if (u.host != backendUri.host) {
+          final newUri = Uri(
+            scheme: backendUri.scheme,
+            host: backendUri.host,
+            port: backendUri.hasPort ? backendUri.port : null,
+            path: u.path,
+            queryParameters: {'t': ts},
+          );
+          return newUri.toString();
+        }
+        return url.contains('?') ? '$url&t=$ts' : '$url?t=$ts';
+      } catch (_) {
+        return url;
+      }
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -62,14 +89,19 @@ class _ProfilePageState extends State<ProfilePage> {
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: const Color(0xFFCBACFF),
-                    child: Text(
-                      _initial(),
-                      style: const TextStyle(
-                        fontSize: 28,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+          backgroundImage: (user != null && (user!['avatar'] ?? '').toString().isNotEmpty)
+            ? NetworkImage(normalizeAvatar((user!['avatar'] ?? '').toString())!) as ImageProvider
+            : null,
+                    child: (user == null || (user!['avatar'] ?? '').toString().isEmpty)
+                        ? Text(
+                            _initial(),
+                            style: const TextStyle(
+                              fontSize: 28,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -92,7 +124,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   ListTile(
                     leading: const Icon(Icons.person_outline),
                     title: const Text('Editar perfil'),
-                    onTap: () {},
+                    onTap: () async {
+                      final updated = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const EditProfilePage()),
+                      );
+                      if (updated != null) {
+                        _loadUser();
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perfil atualizado')));
+                      }
+                    },
                   ),
                   ListTile(
                     leading: const Icon(Icons.settings_outlined),

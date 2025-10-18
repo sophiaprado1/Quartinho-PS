@@ -6,6 +6,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../imoveis/criar_imoveis_page.dart';
+import '../imoveis/editar_imovel_page.dart';
+import '../imoveis/imovel_detalhe_page.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../core/services/auth_service.dart';
+import '../../core/constants.dart';
+import 'package:mobile/pages/profile/profile_page.dart';
+import 'package:mobile/pages/login/login_home_page.dart';
 
 class InicialPage extends StatefulWidget {
   final String name; // nome completo do usuário
@@ -27,6 +35,7 @@ class _InicialPageState extends State<InicialPage> {
   final List<String> _categories = const ['Tudo', 'Casa', 'Apartamento', 'Kitnet'];
   int _selectedCategory = 0;
   int _navIndex = 0;
+  String? _avatarUrl;
 
   // lista dinâmica com os imóveis criados agora
   final List<Map<String, dynamic>> _meusAnuncios = [];
@@ -76,6 +85,147 @@ class _InicialPageState extends State<InicialPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadMinhasPropriedades();
+    _loadMe();
+  }
+
+  Future<void> _loadMe() async {
+    try {
+      final token = await AuthService.getSavedToken();
+      if (token == null) return;
+      final me = await AuthService.me(token: token);
+      if (!mounted) return;
+      final avatar = (me?['avatar'] ?? '')?.toString();
+      if (avatar != null && avatar.isNotEmpty) {
+        String url = avatar;
+        if (!url.startsWith('http')) {
+          // normalize relative paths
+          if (!url.startsWith('/')) url = '/$url';
+          url = '${backendHost}${url}';
+        }
+        setState(() => _avatarUrl = url);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _handleEdit(Map<String, dynamic> dados) async {
+    // abrir página de edição e aguardar o imóvel atualizado
+    final atualizado = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute(builder: (_) => EditarImovelPage(dados: dados)),
+    );
+
+    if (atualizado != null && mounted) {
+      setState(() {
+        final idx = _meusAnuncios.indexWhere((e) => e['id'] == atualizado['id']);
+        if (idx >= 0) {
+          _meusAnuncios[idx] = {
+            ..._meusAnuncios[idx],
+            'titulo': atualizado['titulo'] ?? _meusAnuncios[idx]['titulo'],
+            'endereco': atualizado['endereco'] ?? _meusAnuncios[idx]['endereco'],
+            'preco': atualizado['preco']?.toString() ?? _meusAnuncios[idx]['preco'],
+            'periodicidade': atualizado['periodicidade'] ?? _meusAnuncios[idx]['periodicidade'],
+            'tipo_imovel': atualizado['tipo'] ?? atualizado['categoria'] ?? _meusAnuncios[idx]['tipo_imovel'],
+          };
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imóvel atualizado.')));
+    }
+  }
+
+  Future<void> _handleDelete(Map<String, dynamic> dados) async {
+    final id = dados['id'];
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir imóvel'),
+        content: const Text('Tem certeza que deseja excluir este imóvel? Esta ação não pode ser desfeita.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Excluir')),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final token = await AuthService.getSavedToken();
+      if (token == null) return;
+
+      final url = Uri.parse('${backendHost}/propriedades/propriedades/$id/');
+      final resp = await http.delete(url, headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      });
+
+      if (resp.statusCode == 204 || resp.statusCode == 200) {
+        if (mounted) {
+          setState(() {
+            _meusAnuncios.removeWhere((e) => e['id'] == id);
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imóvel excluído.')));
+      } else if (resp.statusCode == 401) {
+        await AuthService.logout();
+      } else {
+        print('Erro ao excluir imóvel: ${resp.statusCode} ${resp.body}');
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao excluir imóvel')));
+      }
+    } catch (e) {
+      print('Exception ao excluir imóvel: $e');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro na requisição')));
+    }
+  }
+
+  Future<void> _loadMinhasPropriedades() async {
+    try {
+      final token = await AuthService.getSavedToken();
+      if (token == null) return; // usuário não logado
+
+      final url = Uri.parse('${backendHost}/propriedades/propriedades/minhas_propriedades/');
+      final resp = await http.get(url, headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      });
+
+      if (resp.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(resp.body) as List<dynamic>;
+        final List<Map<String, dynamic>> anuncios = data.map((e) {
+          final m = e as Map<String, dynamic>;
+          return {
+            'id': m['id'],
+            'titulo': m['titulo'] ?? '',
+            'endereco': m['endereco'] ?? '',
+            'preco': m['preco']?.toString() ?? '',
+            'periodicidade': m['periodicidade'] ?? 'mensal',
+            'tipo_imovel': m['tipo'] ?? m['categoria'] ?? '',
+            'fotos_paths': (m['fotos'] as List<dynamic>?)
+                    ?.map((f) => (f is Map && f['imagem'] != null) ? f['imagem'] as String : f.toString())
+                    .toList() ?? <String>[],
+          };
+        }).toList();
+
+        if (mounted) {
+          setState(() {
+            _meusAnuncios.clear();
+            _meusAnuncios.addAll(anuncios);
+          });
+        }
+      } else if (resp.statusCode == 401) {
+        await AuthService.logout();
+      } else {
+        print('Erro ao buscar minhas propriedades: ${resp.statusCode} ${resp.body}');
+      }
+    } catch (e) {
+      print('Exception buscando minhas propriedades: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F7),
@@ -88,6 +238,7 @@ class _InicialPageState extends State<InicialPage> {
               _Header(
                 name: _firstName,
                 avatarBytes: widget.avatarBytes,
+                avatarUrl: _avatarUrl,
                 onAdd: _abrirCriarImovel,
               ),
               const SizedBox(height: 16),
@@ -97,7 +248,7 @@ class _InicialPageState extends State<InicialPage> {
               if (_meusAnuncios.isNotEmpty) ...[
                 const _SectionHeader(title: 'Meus anúncios'),
                 const SizedBox(height: 10),
-                _MeusAnunciosList(items: _meusAnuncios),
+                _MeusAnunciosList(items: _meusAnuncios, onEdit: _handleEdit, onDelete: _handleDelete),
                 const SizedBox(height: 20),
               ],
 
@@ -131,7 +282,19 @@ class _InicialPageState extends State<InicialPage> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _navIndex,
-        onDestinationSelected: (i) => setState(() => _navIndex = i),
+        onDestinationSelected: (i) async {
+          // Se for a aba Perfil (última), abrir a tela de Perfil/Login
+          if (i == 3) {
+            final token = await AuthService.getSavedToken();
+            if (token == null) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginHomePage()));
+              return;
+            }
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+            return;
+          }
+          setState(() => _navIndex = i);
+        },
         backgroundColor: Colors.white,
         indicatorColor: const Color(0xFF6E56CF).withValues(alpha: 0.10),
         destinations: const [
@@ -151,9 +314,10 @@ class _InicialPageState extends State<InicialPage> {
 class _Header extends StatelessWidget {
   final String name; // primeiro nome
   final Uint8List? avatarBytes; // bytes do avatar (opcional)
+  final String? avatarUrl; // optional remote avatar url
   final VoidCallback onAdd;
 
-  const _Header({required this.name, this.avatarBytes, required this.onAdd});
+  const _Header({required this.name, this.avatarBytes, this.avatarUrl, required this.onAdd});
 
   String _initials(String n) {
     final parts = n.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
@@ -205,19 +369,54 @@ class _Header extends StatelessWidget {
                 const SizedBox(width: 6),
                 const Icon(Icons.notifications_none_rounded),
                 const SizedBox(width: 10),
-                CircleAvatar(
-                  radius: 18,
-                  backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes!) : null,
-                  backgroundColor: const Color(0xFFE7E7EF),
-                  child: avatarBytes == null
-                      ? Text(
-                          _initials(name),
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1B1D28),
-                          ),
-                        )
-                      : null,
+                PopupMenuButton<String>(
+                  onSelected: (v) async {
+                    if (v == 'perfil') {
+                      final token = await AuthService.getSavedToken();
+                      if (token == null) {
+                        // não logado -> ir para login
+                        try {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginHomePage()));
+                        } catch (_) {}
+                        return;
+                      }
+                      // logado -> abrir perfil
+                      try {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+                      } catch (_) {}
+                    } else if (v == 'logout') {
+                      await AuthService.logout();
+                      try {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(builder: (_) => const LoginHomePage()),
+                          (route) => false,
+                        );
+                      } catch (_) {}
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'perfil', child: Text('Perfil')),
+                    PopupMenuItem(value: 'logout', child: Text('Sair')),
+                  ],
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundImage: avatarBytes != null
+                        ? MemoryImage(avatarBytes!)
+                        : (avatarUrl != null && avatarUrl!.isNotEmpty)
+                            ? NetworkImage(avatarUrl!) as ImageProvider
+                            : null,
+                    backgroundColor: const Color(0xFFE7E7EF),
+                    child: (avatarBytes == null && (avatarUrl == null || avatarUrl!.isEmpty))
+                        ? Text(
+                            _initials(name),
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1B1D28),
+                            ),
+                          )
+                        : null,
+                  ),
                 ),
               ],
             ),
@@ -243,7 +442,9 @@ class _Header extends StatelessWidget {
 // --- Abaixo mantive exatamente como no seu post para ficar 100% plugável ---
 class _MeusAnunciosList extends StatelessWidget {
   final List<Map<String, dynamic>> items;
-  const _MeusAnunciosList({required this.items});
+  final void Function(Map<String, dynamic>) onEdit;
+  final void Function(Map<String, dynamic>) onDelete;
+  const _MeusAnunciosList({required this.items, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -252,7 +453,7 @@ class _MeusAnunciosList extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
-        itemBuilder: (context, index) => _MeuAnuncioCard(dados: items[index]),
+  itemBuilder: (context, index) => _MeuAnuncioCard(dados: items[index], onEdit: onEdit, onDelete: onDelete),
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemCount: items.length,
       ),
@@ -262,7 +463,9 @@ class _MeusAnunciosList extends StatelessWidget {
 
 class _MeuAnuncioCard extends StatelessWidget {
   final Map<String, dynamic> dados;
-  const _MeuAnuncioCard({required this.dados});
+  final void Function(Map<String, dynamic>)? onEdit;
+  final void Function(Map<String, dynamic>)? onDelete;
+  const _MeuAnuncioCard({required this.dados, this.onEdit, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -272,91 +475,155 @@ class _MeuAnuncioCard extends StatelessWidget {
     final periodicidade = (dados['periodicidade'] ?? 'mensal') as String;
     final tag = (dados['tipo'] ?? dados['categoria'] ?? 'Anúncio').toString();
 
-    File? thumb;
+    // Preparar thumbnail: pode ser URL (absoluta ou relativa) ou caminho local
     final fotos = (dados['fotos_paths'] as List?)?.cast<String>() ?? const [];
+    Widget thumbWidget;
     if (fotos.isNotEmpty) {
-      thumb = File(fotos.first);
+      final first = fotos.first.toString();
+      if (first.startsWith('http')) {
+        thumbWidget = Image.network(first, width: 90, height: 150, fit: BoxFit.cover);
+      } else if (first.startsWith('/')) {
+        // caminho relativo retornado pelo backend (/media/...) -> prefixar backendHost
+        final url = '${backendHost}${first}';
+        thumbWidget = Image.network(url, width: 90, height: 150, fit: BoxFit.cover);
+      } else if (first.startsWith('file://')) {
+        try {
+          final file = File(Uri.parse(first).toFilePath());
+          thumbWidget = Image.file(file, width: 90, height: 150, fit: BoxFit.cover);
+        } catch (_) {
+          thumbWidget = Container(width: 90, height: 150, color: const Color(0xFFEFEFF5), child: const Icon(Icons.home_work_outlined));
+        }
+      } else {
+        // pode ser um caminho local absoluto
+        final file = File(first);
+        if (file.existsSync()) {
+          thumbWidget = Image.file(file, width: 90, height: 150, fit: BoxFit.cover);
+        } else {
+          thumbWidget = Container(width: 90, height: 150, color: const Color(0xFFEFEFF5), child: const Icon(Icons.home_work_outlined));
+        }
+      }
+    } else {
+      thumbWidget = Container(width: 90, height: 150, color: const Color(0xFFEFEFF5), child: const Icon(Icons.home_work_outlined));
     }
 
-    return Container(
-      width: 220,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF000000).withValues(alpha: .06),
-            blurRadius: 10,
-            offset: const Offset(0, 6),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              bottomLeft: Radius.circular(20),
-            ),
-            child: thumb != null
-                ? Image.file(thumb, width: 90, height: 150, fit: BoxFit.cover)
-                : Container(
-                    width: 90,
-                    height: 150,
-                    color: const Color(0xFFEFEFF5),
-                    child: const Icon(Icons.home_work_outlined),
-                  ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _Tag(text: tag),
+    return GestureDetector(
+      onTap: () async {
+        // Ao tocar: tentar buscar a versão completa do imóvel no backend
+        final id = dados['id'];
+        try {
+          final token = await AuthService.getSavedToken();
+          final url = Uri.parse('${backendHost}/propriedades/propriedades/$id/');
+          final resp = await http.get(url, headers: token != null
+              ? {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}
+              : {'Content-Type': 'application/json'});
 
-                  // --- TÍTULO DO ANÚNCIO ---
-                  if (titulo.isNotEmpty) ...[
+          if (resp.statusCode == 200) {
+            final Map<String, dynamic> full = jsonDecode(resp.body) as Map<String, dynamic>;
+            Navigator.push(context, MaterialPageRoute(builder: (_) => ImovelDetalhePage(imovel: full)));
+            return;
+          } else if (resp.statusCode == 401) {
+            await AuthService.logout();
+          }
+        } catch (e) {
+          // ignore and fallback
+        }
+
+        // fallback: abrir com os dados que temos (pode não ter fotos completas)
+        try {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ImovelDetalhePage(imovel: dados)));
+        } catch (_) {}
+      },
+      child: Container(
+        width: 220,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF000000).withValues(alpha: .06),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                bottomLeft: Radius.circular(20),
+              ),
+              child: thumbWidget,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _Tag(text: tag)),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, size: 18),
+                          onSelected: (v) {
+                            if (v == 'edit') {
+                              if (onEdit != null) onEdit!(dados);
+                            } else if (v == 'delete') {
+                              if (onDelete != null) onDelete!(dados);
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'edit', child: Text('Editar')),
+                            PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    // --- TÍTULO DO ANÚNCIO ---
+                    if (titulo.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        titulo,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+
+                    // --- ENDEREÇO (um pouco menor) ---
                     const SizedBox(height: 4),
                     Text(
-                      titulo,
+                      endereco,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
                         height: 1.2,
                       ),
                     ),
+
+                    // --- PREÇO ---
+                    Text(
+                      periodicidade == 'mensal' ? '$preco/mês' : '$preco/ano',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
                   ],
-
-                  // --- ENDEREÇO (um pouco menor) ---
-                  const SizedBox(height: 4),
-                  Text(
-                    endereco,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
-                      height: 1.2,
-                    ),
-                  ),
-
-                  // --- PREÇO ---
-                  Text(
-                    periodicidade == 'mensal' ? '$preco/mês' : '$preco/ano',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          )
-        ],
+            )
+          ],
+        ),
       ),
     );
   }

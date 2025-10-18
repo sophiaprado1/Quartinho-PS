@@ -30,8 +30,10 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         ('room', 'Procurando quarto'),
     ]
     
-    email = models.EmailField(unique=True)
+    # keep email nullable to match existing migrations and avoid interactive prompts
+    email = models.EmailField(blank=True, max_length=254, null=True, unique=True)
     username = models.CharField(max_length=150)  # nome completo
+    avatar = models.ImageField(upload_to='usuarios/avatars/', null=True, blank=True)
     cpf = models.CharField(max_length=14, unique=True, null=True, blank=True, validators=[validar_cpf])
     data_nascimento = models.DateField(null=True, blank=True)
     preference = models.CharField(max_length=20, choices=PREFERENCE_CHOICES, null=True, blank=True)

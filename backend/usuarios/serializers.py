@@ -6,10 +6,11 @@ from django.contrib.auth import authenticate
 class UsuarioSerializer(serializers.ModelSerializer):
     nome_completo = serializers.CharField(source='username')  # mapeia username
     password = serializers.CharField(write_only=True)
+    avatar = serializers.ImageField(read_only=True)
     
     class Meta:
         model = Usuario
-        fields = ['id', 'nome_completo', 'data_nascimento', 'cpf', 'email', 'password']
+        fields = ['id', 'nome_completo', 'data_nascimento', 'cpf', 'email', 'avatar', 'password']
         read_only_fields = ['id']
 
     def create(self, validated_data):
