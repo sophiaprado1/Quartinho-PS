@@ -1,11 +1,14 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from django.db.models import Q
 from .models import Propriedade, FotoPropriedade
 from .serializers import PropriedadeSerializer, FotoPropriedadeSerializer
 from .permissions import IsOwnerOrReadOnly
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from rest_framework.permissions import IsAuthenticated
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
@@ -138,7 +141,6 @@ class PropriedadeViewSet(viewsets.ModelViewSet):
             )
             fotos_salvas.append(foto)
         
-        # Serializar e retornar as fotos salvas
         serializer = FotoPropriedadeSerializer(fotos_salvas, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
@@ -161,3 +163,27 @@ class PropriedadeViewSet(viewsets.ModelViewSet):
         obj = self.get_object()
         self.check_object_permissions(request, obj)
         return super().destroy(request, *args, **kwargs)
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def favoritar_propriedade(request, propriedade_id):
+    propriedade = get_object_or_404(Propriedade, id=propriedade_id)
+    
+    if propriedade in request.user.propriedades_favoritas.all():
+        propriedade.favoritos.remove(request.user)
+        is_favorited = False
+    else:
+        propriedade.favoritos.add(request.user)
+        is_favorited = True
+        
+    return Response({'status': 'sucesso', 'favorito': is_favorited})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def lista_favoritos(request):
+
+    propriedades_favoritadas = request.user.propriedades_favoritas.all()
+    
+    serializer = PropriedadeSerializer(propriedades_favoritadas, many=True, context={'request': request})
+    return Response(serializer.data)   
