@@ -12,15 +12,15 @@ import 'package:mobile/pages/signup/extra_signup_page.dart';
 class LocationPage extends StatefulWidget {
   final String name;
   final String email;
-  final String cpf;            // 👈 novo
-  final DateTime birthDate;    // 👈 novo
+  final String? cpf;
+  final DateTime? birthDate;
 
   const LocationPage({
     super.key,
     required this.name,
     required this.email,
-    required this.cpf,         // 👈 novo
-    required this.birthDate,   // 👈 novo
+    this.cpf,
+    this.birthDate,
   });
 
   @override
@@ -43,9 +43,9 @@ void _goNext() {
       builder: (_) => ExtraSignUpPage(
         name: widget.name,
         email: widget.email,
-        cpf: widget.cpf,
-        birthDate: widget.birthDate,
-        city: _addressCtrl.text.isNotEmpty ? _addressCtrl.text : null, // ✅ aqui
+        cpf: widget.cpf ?? '',
+        birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
+        city: _addressCtrl.text.isNotEmpty ? _addressCtrl.text : null,
       ),
     ),
   );
@@ -67,9 +67,9 @@ void _goNext() {
                   SkipPill(
                     name: widget.name,
                     email: widget.email,
-                    cpf: widget.cpf,               // 👈 novo
-                    birthDate: widget.birthDate,   // 👈 novo
-                    onSkip: _goNext,               // aciona o mesmo fluxo do próximo
+                    cpf: widget.cpf ?? '',
+                    birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
+                    onSkip: _goNext,
                   ),
                 ],
               ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/pages/imoveis/imoveis_page.dart';
+import 'package:mobile/pages/profile/profile_page.dart';
 // Importe suas outras páginas aqui
 // import 'package:mobile/pages/search/search_page.dart';
 // import 'package:mobile/pages/favorites/favorites_page.dart';
@@ -26,7 +27,7 @@ class _HomePageState extends State<HomePage> {
       // Substitua pelos seus widgets reais:
       Center(child: Text('Busca')), // SearchPage(),
       Center(child: Text('Favoritos')), // FavoritesPage(),
-      Center(child: Text('Perfil')), // ProfilePage(),
+      const ProfilePage(),
     ];
   }
 

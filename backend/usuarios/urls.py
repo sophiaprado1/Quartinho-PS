@@ -1,12 +1,10 @@
-from rest_framework import routers
-from .views import LocadorViewSet, InquilinoViewSet, ImovelViewSet, ImovelFotoViewSet
+from django.urls import path
+from .views import UsuarioCreateView, CheckEmailView, LoginView, UserPreferenceView, UserMeView
 
-
-
-router = routers.DefaultRouter()
-router.register(r'locadores', LocadorViewSet, basename='locador')
-router.register(r'inquilinos', InquilinoViewSet, basename='inquilino')
-router.register(r'imoveis', ImovelViewSet, basename='imovel')
-router.register(r'imoveis_foto', ImovelFotoViewSet, basename='imoveis_foto')
-
-urlpatterns = router.urls
+urlpatterns = [
+    path('usercreate/', UsuarioCreateView.as_view(), name='usuario-create'),
+    path('check-email/', CheckEmailView.as_view(), name='check-email'),
+    path('login/', LoginView.as_view(), name='login'),
+    path('preferences/', UserPreferenceView.as_view(), name='user-preferences'),
+    path('me/', UserMeView.as_view(), name='user-me'),
+]

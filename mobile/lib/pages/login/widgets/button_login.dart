@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/services/auth_service.dart';
-import 'package:mobile/pages/home_page.dart';
+import 'package:mobile/pages/inicial/inicial_page.dart';
 
 class ButtonLogin extends StatefulWidget {
   final TextEditingController emailController;
@@ -25,25 +25,49 @@ class _ButtonLoginState extends State<ButtonLogin> {
     final email = widget.emailController.text;
     final senha = widget.senhaController.text;
 
-    final token = await AuthService.login(username: email, senha: senha); // Use correct parameter
-
-    if (!mounted) return; // Guard context usage
-
-    setState(() => loading = false);
-
-    if (token != null) {
+    // Debug: mostrar qual URL será usada e confirmar que o botão foi pressionado
+    final debugUrl = '${AuthService.baseUrl}/usuarios/login/';
+    print('Botão de login pressionado. Tentando POST para: $debugUrl');
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login realizado com sucesso!')),
+        SnackBar(content: Text('Tentando conectar em: $debugUrl')),
       );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomePage(token: token),
-        ),
-      );
-    } else {
+    }
+
+    try {
+      final result = await AuthService.login(email: email, senha: senha);
+
+      if (!mounted) return; // Guard context usage
+      setState(() => loading = false);
+
+      if (result != null && result['token'] != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login realizado com sucesso!')),
+        );
+
+        final user = result['user'] as Map<String, dynamic>?;
+        final name = user != null ? (user['username'] ?? user['full_name'] ?? '') : '';
+        final emailMe = user != null ? (user['email'] ?? email) : email;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InicialPage(
+              name: name.isNotEmpty ? name : emailMe.split('@').first,
+              city: '', // cidade pode ser preenchida depois pelo usuário/perfil
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Email ou senha inválidos')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Email ou senha inválidos')),
+        SnackBar(content: Text('Erro de rede ao tentar login. Verifique sua conexão.')),
       );
     }
   }

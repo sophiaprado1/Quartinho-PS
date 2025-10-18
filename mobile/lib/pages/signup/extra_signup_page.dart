@@ -7,7 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import '../inicial/inicial_page.dart';
+import 'package:mobile/pages/inicial/inicial_page.dart';
+import 'package:mobile/pages/login/login.dart';
 
 class ExtraSignUpPage extends StatefulWidget {
   final String name;
@@ -218,15 +219,16 @@ class _ExtraSignUpPageState extends State<ExtraSignUpPage> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                     ),
                     onPressed: () {
-                      Navigator.pushReplacement(
+                      Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(
                           builder: (_) => InicialPage(
                             name: widget.name,
-                            city: widget.city ?? 'Palmas, Tocantins',
-                            avatarBytes: _avatarBytes, // << aqui vai a foto
+                            city: widget.city ?? '',
+                            avatarBytes: _avatarBytes,
                           ),
                         ),
+                        (route) => false,
                       );
                     },
                     child: Text('Pronto', style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),

@@ -1,5 +1,11 @@
 // criar_imovel_detalhes_page.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:mobile/core/constants.dart';
+import 'package:http_parser/http_parser.dart';
+import 'package:mobile/core/services/auth_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class CriarImovelDetalhesPage extends StatefulWidget {
@@ -19,6 +25,7 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
   final _precoCtrl = TextEditingController(text: 'R\$ 975,00');
 
   final _tagLivreCtrl = TextEditingController();
+  final _descricaoCtrl = TextEditingController();
   final FocusNode _tagFocus = FocusNode();
   final List<String> _customTags = [];
 
@@ -42,6 +49,7 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
   void dispose() {
     _precoCtrl.dispose();
     _tagLivreCtrl.dispose();
+    _descricaoCtrl.dispose();
     _tagFocus.dispose();
     super.dispose();
   }
@@ -70,6 +78,7 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
 
     final dados = {
       ...widget.dadosParciais,
+      'descricao': _descricaoCtrl.text.trim(),
       'preco': _precoCtrl.text.trim(),
       'periodicidade': _mensal ? 'mensal' : 'anual',
       'quartos': _qtdQuartos,
@@ -172,11 +181,71 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                         ),
                         elevation: 0,
                       ),
-                      onPressed: () {
-                        // Fecha o modal e devolve os DADOS para quem abriu ESTA tela
-                        Navigator.of(context).pop();                 // fecha o bottom sheet
-                        Navigator.of(context).pop(dados);            // fecha a página atual com resultado
-                        // Quem chamou (Localização) está com 'await' e vai dar pop pra trás com o mesmo Map.
+                      onPressed: () async {
+                        // Tenta criar a propriedade no backend e fazer upload das fotos
+                        Navigator.of(context).pop(); // fecha o bottom sheet
+
+                        // Indicar carregamento na página atual
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (_) => const Center(child: CircularProgressIndicator()),
+                        );
+
+                        Map<String, dynamic>? serverResult;
+                        try {
+                          final token = await AuthService.getSavedToken();
+
+                          // Monta payload mínimo conhecido
+                          final precoStr = (dados['preco'] ?? '').toString();
+                          double? precoVal;
+                          try {
+                            var s = precoStr.replaceAll(RegExp(r'[^0-9,\.]'), '');
+                            // normaliza formato brasileiro 1.234,56 -> 1234.56
+                            s = s.replaceAll('.', '').replaceAll(',', '.');
+                            precoVal = double.parse(s);
+                          } catch (_) {
+                            precoVal = null;
+                          }
+
+                          final payload = {
+                            'titulo': dados['titulo'],
+                            'descricao': dados['descricao'] ?? dados['descricao_curta'] ?? '',
+                            'tipo': dados['tipo_imovel'] ?? dados['tipo'] ?? 'apartamento',
+                            'preco': precoVal != null ? precoVal.toString() : dados['preco'],
+                            'endereco': dados['endereco'] ?? '',
+                            // cidade/estado/cep podem não existir no fluxo; enviar vazio para evitar erro de null
+                            'cidade': dados['cidade'] ?? '',
+                            'estado': dados['estado'] ?? '',
+                            'cep': dados['cep'] ?? '',
+                            'quartos': dados['quartos'] ?? 1,
+                            'banheiros': dados['banheiros'] ?? 1,
+                            'area': dados['area'] ?? null,
+                            'mobiliado': datosOrFalse(dados['mobiliado']),
+                            'aceita_pets': datosOrFalse(dados['aceita_pets']),
+                            'internet': datosOrFalse(dados['internet']),
+                            'estacionamento': datosOrFalse(dados['estacionamento']),
+                          }..removeWhere((k, v) => v == null);
+
+                          // Função auxiliar localizada abaixo
+                          serverResult = await _createPropertyOnServer(payload, token, dados['fotos_paths']);
+                        } catch (e) {
+                          print('Erro ao criar propriedade: $e');
+                        }
+
+                        Navigator.of(context).pop(); // fecha o dialog de carregamento
+
+                        // Se serverResult retornar um erro, mostre para o usuário e não feche a tela
+                        if (serverResult != null && serverResult['error'] != null) {
+                          final msg = serverResult['error'].toString();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Erro ao criar imóvel: $msg')),
+                          );
+                          return; // mantém usuário na página para correção
+                        }
+
+                        // Se tudo bem, devolve os dados do servidor (ou os locais se serverResult for nulo)
+                        Navigator.of(context).pop(serverResult ?? dados);
                       },
                       child: Text(
                         'Pronto',
@@ -348,6 +417,28 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                 ],
               ),
               const SizedBox(height: 28),
+
+              // Descrição longa do imóvel
+              Text('Descrição', style: _label),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _descricaoCtrl,
+                maxLines: 5,
+                style: GoogleFonts.poppins(),
+                decoration: InputDecoration(
+                  hintText: 'Descreva o imóvel, comodidades, vizinhança, regras...'
+                      ' (opcional)',
+                  filled: true,
+                  fillColor: const Color(0xFFF5F4FA),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
 
               SizedBox(
                 width: double.infinity,
@@ -656,4 +747,81 @@ class _TagItem {
   final String label;
   bool selected;
   _TagItem(this.label, {this.selected = false});
+}
+
+bool datosOrFalse(dynamic v) {
+  if (v == null) return false;
+  if (v is bool) return v;
+  final s = v.toString().toLowerCase();
+  return s == 'true' || s == '1' || s == 'sim';
+}
+
+Future<Map<String, dynamic>?> _createPropertyOnServer(Map<String, dynamic> payload, String? token, List<dynamic>? fotosPaths) async {
+  if (token == null) return null;
+  try {
+    final url = Uri.parse('$backendHost/propriedades/propriedades/');
+    final resp = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(payload),
+    );
+
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final id = data['id'];
+      // se houver fotos, envie via multipart para o action upload_fotos
+      if (id != null && fotosPaths != null && fotosPaths.isNotEmpty) {
+        final uploadUrl = Uri.parse('$backendHost/propriedades/propriedades/$id/upload_fotos/');
+        final request = http.MultipartRequest('POST', uploadUrl);
+        request.headers['Authorization'] = 'Bearer $token';
+        for (var i = 0; i < fotosPaths.length; i++) {
+          final p = fotosPaths[i] as String;
+          final file = File(p);
+          if (await file.exists()) {
+            // Detect mime type from extension (jpg/jpeg, png, webp)
+            String lower = p.toLowerCase();
+            String mimeType = 'image/jpeg';
+            if (lower.endsWith('.png')) mimeType = 'image/png';
+            else if (lower.endsWith('.webp')) mimeType = 'image/webp';
+            else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) mimeType = 'image/jpeg';
+
+            final parts = mimeType.split('/');
+            final mediaType = MediaType(parts[0], parts[1]);
+
+            request.files.add(await http.MultipartFile.fromPath('imagens', p, contentType: mediaType));
+          }
+        }
+        // opcional: marque a primeira imagem como principal
+        if (request.files.isNotEmpty) {
+          request.fields['principal'] = '0';
+        }
+
+        final streamed = await request.send();
+        final respStr = await streamed.stream.bytesToString();
+        if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+          // tudo OK
+        } else {
+          print('Upload fotos falhou: ${streamed.statusCode} - $respStr');
+          // tenta parsear JSON de erro do servidor
+          try {
+            final decoded = jsonDecode(respStr);
+            return {'error': 'Upload fotos falhou', 'details': decoded};
+          } catch (_) {
+            return {'error': 'Upload fotos falhou: HTTP ${streamed.statusCode} - $respStr'};
+          }
+        }
+      }
+
+      return data;
+    } else {
+      print('Erro criando propriedade: ${resp.statusCode} ${resp.body}');
+      return {'error': 'HTTP ${resp.statusCode}: ${resp.body}'};
+    }
+  } catch (e) {
+    print('Exceção criando propriedade: $e');
+    return {'error': e.toString()};
+  }
 }

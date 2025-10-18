@@ -1,59 +1,48 @@
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
-from django.contrib.auth.models import AbstractUser
-from django.core.exceptions import ValidationError
-from pycpfcnpj import cpf
+from django.forms import ValidationError
 
+class UsuarioManager(BaseUserManager):
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError("O usuário precisa de um email")
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
 
-class Imovel(models.Model):
-    TIPO_IMOVEL = (
-        ('casa', 'Casa'),
-        ('apartamento', 'Apartamento'),
-        ('kitnet', 'Kitnet'),
-    )
-    dono = models.ForeignKey('Usuario', on_delete=models.CASCADE, related_name='imoveis')
-    titulo = models.CharField(max_length=100)
-    descricao = models.TextField()
-    endereco = models.CharField(max_length=255)
-    cidade = models.CharField(max_length=100)
-    preco_total = models.DecimalField(max_digits=12, decimal_places=2)
-    qtd_vagas = models.PositiveIntegerField()
-    vagas_disponiveis = models.PositiveIntegerField()
-    tipo = models.CharField(max_length=20, choices=TIPO_IMOVEL, default='casa')
-    data_publicacao = models.DateTimeField(auto_now_add=True)
-    ativo = models.BooleanField(default=True)
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        return self.create_user(email, password, **extra_fields)
 
-    def __str__(self):
-        return f"{self.titulo} - {self.cidade}"
-
-
-class Imovel_Foto(models.Model):
-    imovel = models.ForeignKey('Imovel', on_delete=models.CASCADE, related_name='fotos')
-    imagem = models.ImageField(upload_to='imoveis_fotos/', blank=True, null=True)
-
-    def __str__(self):
-        return f"Foto do imóvel {self.imovel_id}"
 
 def validar_cpf(value):
-    if not cpf.validate(value):
-        raise ValidationError('CPF inválido.')
+    if not value.isdigit() or len(value) != 11:
+        raise ValidationError("CPF inválido. Deve conter 11 dígitos numéricos.")
+    return value
 
-class Usuario(AbstractUser):
-    ESCOLHA_SEXO = (
-        ('M', 'Masculino'),
-        ('F', 'Feminino'),
-        ('O', 'Outro'),
-    )    
-    TIPOS = (
-        ('locador', 'Locador'),
-        ('inquilino', 'Inquilino'),
-    )
-    tipo = models.CharField(max_length=10, choices=TIPOS)
-    telefone = models.CharField(max_length=20, blank=True, null=True)
-    data_nascimento = models.DateField(blank=True, null=True)
-    bio = models.TextField(blank=True, null=True)
-    cpf = models.CharField(max_length=14, blank=True, null=True, unique=True, validators=[validar_cpf])
-    sexo = models.CharField(max_length=1, choices=ESCOLHA_SEXO, blank=True, null=True)
-    email = models.EmailField(unique=True, blank=True, null=True)
+
+class Usuario(AbstractBaseUser, PermissionsMixin):
+    PREFERENCE_CHOICES = [
+        ('roommate', 'Procurando colega de quarto'),
+        ('room', 'Procurando quarto'),
+    ]
     
+    email = models.EmailField(unique=True)
+    username = models.CharField(max_length=150)  # nome completo
+    cpf = models.CharField(max_length=14, unique=True, null=True, blank=True, validators=[validar_cpf])
+    data_nascimento = models.DateField(null=True, blank=True)
+    preference = models.CharField(max_length=20, choices=PREFERENCE_CHOICES, null=True, blank=True)
+
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+
+    objects = UsuarioManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["username"]
+
     def __str__(self):
-        return f"{self.username} - {self.tipo}"
+        return self.email
