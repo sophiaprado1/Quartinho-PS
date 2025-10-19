@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
 import 'criar_imovel_fotos_page.dart';
 
 class CriarImovelLocalizacaoPage extends StatefulWidget {
@@ -9,10 +11,12 @@ class CriarImovelLocalizacaoPage extends StatefulWidget {
   const CriarImovelLocalizacaoPage({super.key, required this.dadosIniciais});
 
   @override
-  State<CriarImovelLocalizacaoPage> createState() => _CriarImovelLocalizacaoPageState();
+  State<CriarImovelLocalizacaoPage> createState() =>
+      _CriarImovelLocalizacaoPageState();
 }
 
-class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage> {
+class _CriarImovelLocalizacaoPageState
+    extends State<CriarImovelLocalizacaoPage> {
   final _enderecoCtrl = TextEditingController();
   final _cidadeCtrl = TextEditingController();
   final _estadoCtrl = TextEditingController();
@@ -22,7 +26,9 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
   static const Color _accent = Color(0xFFFF8A34);
   static const Color _textDark = Color(0xFF1B1D28);
   static const Color _pill = Color(0xFFF5F4FA);
-  static const Color _purple = Color(0xFF6E56CF);
+
+  GoogleMapController? _mapController;
+  LatLng _posicao = const LatLng(-10.184, -48.333); // Palmas-TO inicial
 
   @override
   void dispose() {
@@ -33,8 +39,32 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
     super.dispose();
   }
 
+  Future<void> _buscarEnderecoPelaPosicao() async {
+    try {
+      List<Placemark> placemarks =
+          await placemarkFromCoordinates(_posicao.latitude, _posicao.longitude);
+
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        setState(() {
+          _enderecoCtrl.text =
+              '${p.street ?? ''}, ${p.subThoroughfare ?? ''}'.trim();
+          _cidadeCtrl.text = p.locality ?? '';
+          _estadoCtrl.text = p.administrativeArea ?? '';
+          _cepCtrl.text = p.postalCode ?? '';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Endereço preenchido automaticamente!')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao buscar endereço: $e')),
+      );
+    }
+  }
+
   Future<void> _irParaFotos() async {
-    // Validações básicas
     if (_enderecoCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Informe o endereço do imóvel.')),
@@ -47,7 +77,8 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
       );
       return;
     }
-    if (_estadoCtrl.text.trim().isEmpty || _estadoCtrl.text.trim().length != 2) {
+    if (_estadoCtrl.text.trim().isEmpty ||
+        _estadoCtrl.text.trim().length != 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Informe a UF com 2 letras (ex: GO).')),
       );
@@ -66,10 +97,10 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
       'cidade': _cidadeCtrl.text.trim(),
       'estado': _estadoCtrl.text.trim().toUpperCase(),
       'cep': _cepCtrl.text.trim(),
-      // se futuramente tiver lat/lng, inclua aqui
+      'latitude': _posicao.latitude,
+      'longitude': _posicao.longitude,
     };
 
-    // ⚠️ IMPORTANTE: aguarde o resultado da próxima tela
     final resultado = await Navigator.push<Map<String, dynamic>?>(
       context,
       MaterialPageRoute(
@@ -77,7 +108,6 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
       ),
     );
 
-    // Se voltou com dados, devolve para quem abriu esta tela
     if (resultado != null) {
       Navigator.pop(context, resultado);
     }
@@ -120,9 +150,10 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
               ),
               const SizedBox(height: 16),
 
-              // "Pílula" com endereço digitado
+              // Campo endereço
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: _pill,
                   borderRadius: BorderRadius.circular(16),
@@ -139,12 +170,14 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
                       child: TextField(
                         controller: _enderecoCtrl,
                         maxLines: 2,
-                        style: GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
+                        style:
+                            GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
                         decoration: InputDecoration(
                           isDense: true,
-                          hintText: 'Condomínio dos Jacarés, avenida das Rosas,\nNúmero 66. 77025-666',
+                          hintText:
+                              'Condomínio dos Jacarés, avenida das Rosas,\nNúmero 66. 77025-666',
                           hintStyle: GoogleFonts.poppins(
-                            color: Colors.black.withValues(alpha: .45),
+                            color: Colors.black.withOpacity(.45),
                             fontSize: 13.5,
                             height: 1.3,
                           ),
@@ -156,11 +189,8 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
                   ],
                 ),
               ),
-
               const SizedBox(height: 16),
 
-              // Mapa "fake" (placeholder visual)
-              const SizedBox(height: 12),
               // Cidade / Estado / CEP
               Row(
                 children: [
@@ -168,14 +198,19 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
                     flex: 3,
                     child: TextField(
                       controller: _cidadeCtrl,
-                      style: GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
+                      style:
+                          GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
                       decoration: InputDecoration(
                         hintText: 'Cidade',
                         isDense: true,
                         filled: true,
                         fillColor: _pill,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                   ),
@@ -185,14 +220,19 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
                     child: TextField(
                       controller: _estadoCtrl,
                       textCapitalization: TextCapitalization.characters,
-                      style: GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
+                      style:
+                          GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
                       decoration: InputDecoration(
                         hintText: 'UF',
                         isDense: true,
                         filled: true,
                         fillColor: _pill,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                   ),
@@ -202,71 +242,64 @@ class _CriarImovelLocalizacaoPageState extends State<CriarImovelLocalizacaoPage>
                     child: TextField(
                       controller: _cepCtrl,
                       keyboardType: TextInputType.number,
-                      style: GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
+                      style:
+                          GoogleFonts.poppins(fontSize: 13.5, height: 1.3),
                       decoration: InputDecoration(
                         hintText: 'CEP',
                         isDense: true,
                         filled: true,
                         fillColor: _pill,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
+
+              // 🗺️ Mapa do Google
               ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: Container(
+                child: SizedBox(
                   height: 220,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFFECEBFF), Color(0xFFFFFFFF)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
                   child: Stack(
                     children: [
-                      // marcador
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: _purple.withValues(alpha: .20),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Container(
-                              width: 22,
-                              height: 22,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFF8A34),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.circle, size: 8, color: Colors.white),
-                            ),
-                          ),
+                      GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: _posicao,
+                          zoom: 14,
                         ),
+                        onMapCreated: (controller) => _mapController = controller,
+                        onCameraMove: (pos) => setState(() {
+                          _posicao = pos.target;
+                        }),
+                        markers: {
+                          Marker(
+                            markerId: const MarkerId('local'),
+                            position: _posicao,
+                            icon: BitmapDescriptor.defaultMarkerWithHue(
+                                BitmapDescriptor.hueOrange),
+                          ),
+                        },
+                        myLocationButtonEnabled: false,
+                        zoomControlsEnabled: false,
                       ),
-                      // botão "Selecionar no mapa" (placeholder)
                       Positioned(
                         left: 12,
                         right: 12,
                         bottom: 12,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            // implemente aqui a seleção no mapa quando tiver o plugin
-                          },
+                          onTap: _buscarEnderecoPelaPosicao,
                           child: Container(
                             height: 38,
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: .92),
+                              color: Colors.white.withOpacity(.92),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Center(

@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import 'core/theme.dart';
 import 'core/app_routes.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() => runApp(const QuartinhoApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final alreadyReset = prefs.getBool('firstRunResetPerformed') ?? false;
+  if (!alreadyReset) {
+    await prefs.clear();
+    await prefs.setBool('firstRunResetPerformed', true);
+  }
+  runApp(const QuartinhoApp());
+}
 
 class QuartinhoApp extends StatelessWidget {
   const QuartinhoApp({super.key});
