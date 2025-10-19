@@ -35,6 +35,8 @@ dependencies:
   google_fonts: ^6.2.1
   image_picker: ^1.0.7
   google_maps_flutter: ^2.6.0
+  geolocator: ^13.0.1
+  geocoding: ^3.0.0
   http: ^1.2.1
   http_parser: ^4.0.0
   shared_preferences: ^2.2.2

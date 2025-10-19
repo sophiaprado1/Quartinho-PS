@@ -1,9 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
+
 import 'package:mobile/core/services/auth_service.dart';
 import 'package:mobile/pages/login/login.dart';
+
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -19,7 +24,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _cpfCtrl = TextEditingController();
-  final _birthCtrl = TextEditingController(); // só exibe o texto formatado
+  final _birthCtrl = TextEditingController(); // exibe a data formatada
 
   DateTime? _birthDate;
   bool showPassword = false;
@@ -66,20 +71,109 @@ class _SignUpPageState extends State<SignUpPage> {
     if (v == null || v.isEmpty) return 'Informe seu CPF';
     final digits = v.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.length != 11) return 'CPF deve ter 11 dígitos';
-    return null; // (regra simples; se quiser eu adiciono validação de dígitos verificadores)
+    return null;
   }
 
   String? _validateBirth(String? _) {
     if (_birthDate == null) return 'Informe sua data de nascimento';
-    // opcional: idade mínima
-    final age = DateTime.now().year - _birthDate!.year -
-        ((DateTime.now().month < _birthDate!.month ||
-                (DateTime.now().month == _birthDate!.month &&
-                    DateTime.now().day < _birthDate!.day))
-            ? 1
-            : 0);
+    final now = DateTime.now();
+    var age = now.year - _birthDate!.year;
+    if (now.month < _birthDate!.month ||
+        (now.month == _birthDate!.month && now.day < _birthDate!.day)) {
+      age--;
+    }
     if (age < 16) return 'Idade mínima: 16 anos';
     return null;
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _loading = true);
+
+    // Montei o payload redundante para bater com possíveis campos do backend:
+    final payload = <String, dynamic>{
+      // você usava 'nome_completo'; adiciono 'full_name' e 'username' também
+      'nome_completo': _nameCtrl.text.trim(),
+      'full_name': _nameCtrl.text.trim(),
+      'username': _nameCtrl.text.trim(),
+
+      'email': _emailCtrl.text.trim(),
+      'password': _passwordCtrl.text,
+      'cpf': _cpfCtrl.text.trim(),
+      'data_nascimento': _birthDate != null
+          ? '${_birthDate!.year.toString().padLeft(4, '0')}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}'
+          : null,
+    }..removeWhere((k, v) => v == null);
+
+    final uri = Uri.parse('${AuthService.baseUrl}/usuarios/usercreate/');
+
+    try {
+      final resp = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      // Debug opcional:
+      // print('[SIGNUP] ${resp.statusCode} ${resp.body}');
+
+      setState(() => _loading = false);
+
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cadastro realizado com sucesso. Faça login.')),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const Login()),
+          (route) => false,
+        );
+      } else {
+        String msg = 'Erro ao cadastrar usuário';
+        try {
+          final data = jsonDecode(resp.body);
+          if (data is Map && data['detail'] != null) {
+            msg = data['detail'].toString();
+          } else if (data is Map && data.isNotEmpty) {
+            // junta mensagens de campo: {"email":["já existe"], "password":["fraca"]}
+            msg = data.entries
+                .map((e) => '${e.key}: ${e.value}')
+                .join('\n');
+          } else if (data is List && data.isNotEmpty) {
+            msg = data.join('\n');
+          }
+        } catch (_) {}
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } on SocketException {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sem conexão. Verifique Wi-Fi/dados e o IP do backend.')),
+      );
+    } on HttpException {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Falha HTTP ao conectar no servidor.')),
+      );
+    } on FormatException {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Resposta inválida do servidor.')),
+      );
+    } on TimeoutException {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tempo esgotado. O servidor não respondeu.')),
+      );
+    } catch (e) {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro inesperado: $e')),
+      );
+    }
   }
 
   @override
@@ -128,8 +222,6 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  const SizedBox(height: 12),
-
                   // Email
                   _InputRightIcon(
                     controller: _emailCtrl,
@@ -170,7 +262,9 @@ class _SignUpPageState extends State<SignUpPage> {
                       filled: true,
                       fillColor: fieldBg,
                       contentPadding: const EdgeInsets.symmetric(
-                          vertical: 16, horizontal: 16),
+                        vertical: 16,
+                        horizontal: 16,
+                      ),
                       suffixIcon: const Padding(
                         padding: EdgeInsets.only(right: 12),
                         child: Icon(Icons.calendar_today_outlined, size: 20),
@@ -242,61 +336,9 @@ class _SignUpPageState extends State<SignUpPage> {
                             borderRadius: BorderRadius.circular(28),
                           ),
                         ),
-                        onPressed: _loading
-                            ? null
-                            : () async {
-                                if (!_formKey.currentState!.validate()) return;
-                                setState(() => _loading = true);
-
-                                final url = '${AuthService.baseUrl}/usuarios/usercreate/';
-                                  final payload = {
-                                  'nome_completo': _nameCtrl.text.trim(),
-                                  'email': _emailCtrl.text.trim(),
-                                  'password': _passwordCtrl.text,
-                                  'cpf': _cpfCtrl.text.trim(),
-                                  'data_nascimento': _birthDate != null
-                                      ? '${_birthDate!.year.toString().padLeft(4, '0')}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}'
-                                      : null,
-                                }..removeWhere((k, v) => v == null);
-
-                                try {
-                                  final resp = await http.post(
-                                    Uri.parse(url),
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: jsonEncode(payload),
-                                  );
-
-                                  setState(() => _loading = false);
-
-                                  if (resp.statusCode >= 200 && resp.statusCode < 300) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Cadastro realizado com sucesso. Faça login.')),
-                                    );
-                                    Navigator.pushAndRemoveUntil(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const Login()),
-                                      (route) => false,
-                                    );
-                                  } else {
-                                    String msg = 'Erro ao cadastrar usuário';
-                                    try {
-                                      final data = jsonDecode(resp.body);
-                                      if (data is Map && data['detail'] != null) msg = data['detail'].toString();
-                                      else if (data is Map) msg = data.values.map((e) => e.toString()).join('\n');
-                                    } catch (_) {}
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(msg)),
-                                    );
-                                  }
-                                } catch (e) {
-                                  setState(() => _loading = false);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Erro de rede. Verifique sua conexão.')),
-                                  );
-                                }
-                              },
+                        onPressed: _loading ? null : _submit,
                         child: Text(
-                          'Registre-se!',
+                          _loading ? 'Enviando...' : 'Registre-se!',
                           style: GoogleFonts.lato(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,

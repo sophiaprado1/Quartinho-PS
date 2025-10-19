@@ -1,15 +1,21 @@
-// inicial_page.dart
+// lib/pages/inicial/inicial_page.dart
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+
 import '../imoveis/criar_imoveis_page.dart';
 import '../imoveis/editar_imovel_page.dart';
 import '../imoveis/imovel_detalhe_page.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+
+// >>> usa a tela real de resultados <<<
+import 'package:mobile/pages/imoveis/search_results_page.dart';
+
 import '../../core/services/auth_service.dart';
 import '../../core/constants.dart';
 import 'package:mobile/pages/profile/profile_page.dart';
@@ -32,13 +38,21 @@ class InicialPage extends StatefulWidget {
 }
 
 class _InicialPageState extends State<InicialPage> {
+  /// categorias para filtrar sugestões
   final List<String> _categories = const ['Tudo', 'Casa', 'Apartamento', 'Kitnet'];
   int _selectedCategory = 0;
+
   int _navIndex = 0;
   String? _avatarUrl;
+  int? _myUserId;
 
-  // lista dinâmica com os imóveis criados agora
+  /// lista dinâmica com os imóveis criados pelo usuário logado
   final List<Map<String, dynamic>> _meusAnuncios = [];
+
+  /// sugestões (imóveis de outros usuários)
+  final List<Map<String, dynamic>> _sugestoes = [];
+
+  bool _loadingSugestoes = false;
 
   // Primeiro nome para o header ("Oi, ...!")
   String get _firstName {
@@ -56,14 +70,12 @@ class _InicialPageState extends State<InicialPage> {
       );
 
   Future<void> _abrirCriarImovel() async {
-    // Passe o firstName para a tela de criação só para saudação
     final novo = await Navigator.push<Map<String, dynamic>?>(
       context,
       MaterialPageRoute(builder: (_) => CriarImoveisPage(firstName: _firstName)),
     );
 
     if (novo != null) {
-      // garanta um 'tipo' para a tag do card
       final tipoImovel = (novo['tipo_imovel'] ?? '').toString(); // apartamento|casa|kitnet
       final tipo = {
         'apartamento': 'Apartamento',
@@ -74,21 +86,55 @@ class _InicialPageState extends State<InicialPage> {
       setState(() {
         _meusAnuncios.insert(0, {
           ...novo,
-          'tipo': tipo, // para o _Tag do card
+          'tipo': tipo,
         });
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Imóvel adicionado à seção "Meus anúncios".')),
       );
+
+      // após criar, recarrega sugestões para evitar mostrar o seu próprio como sugestão
+      _loadSugestoes();
     }
   }
 
   @override
   void initState() {
     super.initState();
-    _loadMinhasPropriedades();
-    _loadMe();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    // carrega "me" e "minhas_propriedades" antes de sugerir
+    await Future.wait(<Future<void>>[
+      _loadMe(),
+      _loadMinhasPropriedades(),
+    ]);
+    await _loadSugestoes();
+  }
+
+  Future<void> _doRefresh() async {
+    await _bootstrap();
+  }
+
+  /// Tenta obter o ID do usuário em formatos diferentes (id/pk/aninhado)
+  int? _tryParseUserId(Map<String, dynamic>? me) {
+    if (me == null) return null;
+    final candidates = <dynamic>[
+      me['id'],
+      me['pk'],
+      (me['user'] is Map ? (me['user'] as Map)['id'] : null),
+      (me['usuario'] is Map ? (me['usuario'] as Map)['id'] : null),
+    ];
+    for (final c in candidates) {
+      if (c is int) return c;
+      if (c is String) {
+        final v = int.tryParse(c);
+        if (v != null) return v;
+      }
+    }
+    return null;
   }
 
   Future<void> _loadMe() async {
@@ -97,21 +143,26 @@ class _InicialPageState extends State<InicialPage> {
       if (token == null) return;
       final me = await AuthService.me(token: token);
       if (!mounted) return;
+
+      // avatar
       final avatar = (me?['avatar'] ?? '')?.toString();
       if (avatar != null && avatar.isNotEmpty) {
         String url = avatar;
         if (!url.startsWith('http')) {
-          // normalize relative paths
           if (!url.startsWith('/')) url = '/$url';
-          url = '${backendHost}${url}';
+          url = '$backendHost$url';
         }
-        setState(() => _avatarUrl = url);
+        _avatarUrl = url;
       }
+
+      // id do usuário
+      _myUserId = _tryParseUserId(me as Map<String, dynamic>?);
+
+      setState(() {});
     } catch (_) {}
   }
 
   Future<void> _handleEdit(Map<String, dynamic> dados) async {
-    // abrir página de edição e aguardar o imóvel atualizado
     final atualizado = await Navigator.push<Map<String, dynamic>?>(
       context,
       MaterialPageRoute(builder: (_) => EditarImovelPage(dados: dados)),
@@ -133,6 +184,9 @@ class _InicialPageState extends State<InicialPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imóvel atualizado.')));
+
+      // Atualiza sugestões após editar (por via das dúvidas)
+      _loadSugestoes();
     }
   }
 
@@ -156,7 +210,7 @@ class _InicialPageState extends State<InicialPage> {
       final token = await AuthService.getSavedToken();
       if (token == null) return;
 
-      final url = Uri.parse('${backendHost}/propriedades/propriedades/$id/');
+      final url = Uri.parse('$backendHost/propriedades/propriedades/$id/');
       final resp = await http.delete(url, headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -169,24 +223,29 @@ class _InicialPageState extends State<InicialPage> {
           });
         }
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imóvel excluído.')));
+        // Atualiza sugestões para garantir que não aparece seu próprio imóvel
+        _loadSugestoes();
       } else if (resp.statusCode == 401) {
         await AuthService.logout();
       } else {
+        // ignore: avoid_print
         print('Erro ao excluir imóvel: ${resp.statusCode} ${resp.body}');
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao excluir imóvel')));
       }
     } catch (e) {
+      // ignore: avoid_print
       print('Exception ao excluir imóvel: $e');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro na requisição')));
     }
   }
 
+  /// Carrega propriedades do usuário logado
   Future<void> _loadMinhasPropriedades() async {
     try {
       final token = await AuthService.getSavedToken();
-      if (token == null) return; // usuário não logado
+      if (token == null) return;
 
-      final url = Uri.parse('${backendHost}/propriedades/propriedades/minhas_propriedades/');
+      final url = Uri.parse('$backendHost/propriedades/propriedades/minhas_propriedades/');
       final resp = await http.get(url, headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -194,8 +253,8 @@ class _InicialPageState extends State<InicialPage> {
 
       if (resp.statusCode == 200) {
         final List<dynamic> data = jsonDecode(resp.body) as List<dynamic>;
-        final List<Map<String, dynamic>> anuncios = data.map((e) {
-          final m = e as Map<String, dynamic>;
+        final List<Map<String, dynamic>> anuncios = data.map<Map<String, dynamic>>((e) {
+          final m = Map<String, dynamic>.from(e as Map);
           return {
             'id': m['id'],
             'titulo': m['titulo'] ?? '',
@@ -203,25 +262,165 @@ class _InicialPageState extends State<InicialPage> {
             'preco': m['preco']?.toString() ?? '',
             'periodicidade': m['periodicidade'] ?? 'mensal',
             'tipo_imovel': m['tipo'] ?? m['categoria'] ?? '',
+            // Para meus anúncios usamos fotos_paths (como já estava)
             'fotos_paths': (m['fotos'] as List<dynamic>?)
                     ?.map((f) => (f is Map && f['imagem'] != null) ? f['imagem'] as String : f.toString())
-                    .toList() ?? <String>[],
+                    .toList() ??
+                <String>[],
+            // guardamos também possível dono/autor para referência
+            'owner_id': m['owner_id'] ?? m['usuario_id'] ?? m['user_id'] ?? m['proprietario_id'],
           };
         }).toList();
 
         if (mounted) {
           setState(() {
-            _meusAnuncios.clear();
-            _meusAnuncios.addAll(anuncios);
+            _meusAnuncios
+              ..clear()
+              ..addAll(anuncios);
           });
         }
       } else if (resp.statusCode == 401) {
         await AuthService.logout();
       } else {
+        // ignore: avoid_print
         print('Erro ao buscar minhas propriedades: ${resp.statusCode} ${resp.body}');
       }
     } catch (e) {
+      // ignore: avoid_print
       print('Exception buscando minhas propriedades: $e');
+    }
+  }
+
+  /// Normaliza um item vindo do backend para o formato esperado pela grade de sugestões
+  Map<String, dynamic> _normalizeSugestao(Map raw) {
+    final m = Map<String, dynamic>.from(raw);
+    // título, preço e imagens
+    final titulo = (m['titulo'] ?? '').toString();
+    final preco = (m['preco'] ?? m['preco_total'] ?? '').toString();
+
+    // fotos: aceitamos "fotos" [{imagem: "..."}] ou "fotos_paths" ["/path", ...]
+    List<Map<String, String>> fotos = [];
+    final rawFotos = m['fotos'];
+    if (rawFotos is List) {
+      for (final f in rawFotos) {
+        if (f is Map && f['imagem'] != null) {
+          String s = f['imagem'].toString();
+          if (!s.startsWith('http')) {
+            if (!s.startsWith('/')) s = '/$s';
+            s = '$backendHost$s';
+          }
+          fotos.add({'imagem': s});
+        } else if (f is String) {
+          String s = f;
+          if (!s.startsWith('http')) {
+            if (!s.startsWith('/')) s = '/$s';
+            s = '$backendHost$s';
+          }
+          fotos.add({'imagem': s});
+        }
+      }
+    } else if (m['fotos_paths'] is List) {
+      for (final f in (m['fotos_paths'] as List)) {
+        String s = f.toString();
+        if (!s.startsWith('http')) {
+          if (!s.startsWith('/')) s = '/$s';
+          s = '$backendHost$s';
+        }
+        fotos.add({'imagem': s});
+      }
+    }
+
+    return {
+      ...m,
+      'titulo': titulo,
+      'preco': preco,
+      'fotos': fotos, // grade de sugestões usa m['fotos'][0]['imagem']
+    };
+  }
+
+  bool _isMine(Map m) {
+    // Tenta detectar dono do imóvel
+    final ownerCandidates = [
+      m['owner_id'],
+      m['usuario_id'],
+      m['user_id'],
+      m['proprietario_id'],
+      (m['owner'] is Map ? (m['owner'] as Map)['id'] : null),
+      (m['usuario'] is Map ? (m['usuario'] as Map)['id'] : null),
+      (m['user'] is Map ? (m['user'] as Map)['id'] : null),
+      (m['proprietario'] is Map ? (m['proprietario'] as Map)['id'] : null),
+    ];
+    int? ownerId;
+    for (final c in ownerCandidates) {
+      if (c is int) {
+        ownerId = c;
+        break;
+      } else if (c is String) {
+        final v = int.tryParse(c);
+        if (v != null) {
+          ownerId = v;
+          break;
+        }
+      }
+    }
+    return _myUserId != null && ownerId != null && _myUserId == ownerId;
+  }
+
+  Future<void> _loadSugestoes() async {
+    setState(() => _loadingSugestoes = true);
+    try {
+      final token = await AuthService.getSavedToken();
+
+      // Endpoint geral de propriedades (ajuste se o seu for outro)
+      final uri = Uri.parse('$backendHost/propriedades/propriedades/').replace(
+        queryParameters: {
+          if (_selectedCategory != 0)
+            'tipo': _categories[_selectedCategory].toLowerCase(), // casa|apartamento|kitnet
+        },
+      );
+
+      final resp = await http.get(
+        uri,
+        headers: {
+          if (token != null) 'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (resp.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(resp.body) as List<dynamic>;
+
+        // IDs dos meus anúncios para evitar duplicatas
+        final myIds = _meusAnuncios.map((e) => e['id']).toSet();
+
+        final outros = <Map<String, dynamic>>[];
+        for (final raw in data) {
+          final m = Map<String, dynamic>.from(raw as Map);
+          // pula itens que são meus
+          if (_isMine(m)) continue;
+          // pula se já está na seção "meus anúncios"
+          if (myIds.contains(m['id'])) continue;
+          outros.add(_normalizeSugestao(m));
+        }
+
+        if (mounted) {
+          setState(() {
+            _sugestoes
+              ..clear()
+              ..addAll(outros);
+          });
+        }
+      } else if (resp.statusCode == 401) {
+        await AuthService.logout();
+      } else {
+        // ignore: avoid_print
+        print('Erro ao buscar sugestões: ${resp.statusCode} ${resp.body}');
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Exception buscando sugestões: $e');
+    } finally {
+      if (mounted) setState(() => _loadingSugestoes = false);
     }
   }
 
@@ -230,60 +429,76 @@ class _InicialPageState extends State<InicialPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F7),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Header(
-                name: _firstName,
-                avatarBytes: widget.avatarBytes,
-                avatarUrl: _avatarUrl,
-                onAdd: _abrirCriarImovel,
-              ),
-              const SizedBox(height: 16),
-              _LocationAndProfile(city: widget.city),
-              const SizedBox(height: 20),
-
-              if (_meusAnuncios.isNotEmpty) ...[
-                const _SectionHeader(title: 'Meus anúncios'),
-                const SizedBox(height: 10),
-                _MeusAnunciosList(items: _meusAnuncios, onEdit: _handleEdit, onDelete: _handleDelete),
+        child: RefreshIndicator(
+          onRefresh: _doRefresh,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Header(
+                  name: _firstName,
+                  avatarBytes: widget.avatarBytes,
+                  avatarUrl: _avatarUrl,
+                  onAdd: _abrirCriarImovel,
+                ),
+                const SizedBox(height: 16),
+                _LocationAndProfile(city: widget.city),
                 const SizedBox(height: 20),
-              ],
 
-              const _SearchBar(),
-              const SizedBox(height: 14),
-              _CategoryChips(
-                categories: _categories,
-                selected: _selectedCategory,
-                onChanged: (i) => setState(() => _selectedCategory = i),
-              ),
-              const SizedBox(height: 18),
-              const _FeaturedCarousel(),
-              const SizedBox(height: 18),
-              const _SectionHeader(title: 'Imóveis recentes', action: 'Ver tudo'),
-              const SizedBox(height: 12),
-              const _RecentList(),
-              const SizedBox(height: 24),
-              const _SectionHeader(title: 'Locais mais procurados', action: 'Ver tudo'),
-              const SizedBox(height: 10),
-              const _PopularPlaces(),
-              const SizedBox(height: 18),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text('Explore locais próximos', style: _h2),
-              ),
-              const SizedBox(height: 12),
-              const _NearbyGrid(),
-            ],
+                if (_meusAnuncios.isNotEmpty) ...[
+                  const _SectionHeader(title: 'Meus anúncios'),
+                  const SizedBox(height: 10),
+                  _MeusAnunciosList(
+                    items: _meusAnuncios,
+                    onEdit: _handleEdit,
+                    onDelete: _handleDelete,
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                // Busca (mantida porque ajuda o usuário)
+                const _SearchBar(),
+                const SizedBox(height: 16),
+
+                // Filtro de categoria (aplica nas sugestões)
+                _CategoryChips(
+                  categories: _categories,
+                  selected: _selectedCategory,
+                  onChanged: (i) async {
+                    setState(() => _selectedCategory = i);
+                    await _loadSugestoes();
+                  },
+                ),
+                const SizedBox(height: 18),
+
+                const _SectionHeader(title: 'Sugestões para você'),
+                const SizedBox(height: 12),
+
+                if (_loadingSugestoes)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (_sugestoes.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text('Sem sugestões no momento.', style: GoogleFonts.poppins(fontSize: 14)),
+                  )
+                else
+                  _SugestoesGrid(items: _sugestoes),
+              ],
+            ),
           ),
         ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _navIndex,
         onDestinationSelected: (i) async {
-          // Se for a aba Perfil (última), abrir a tela de Perfil/Login
+          // Aba Perfil (última): abrir a tela de Perfil/Login
           if (i == 3) {
             final token = await AuthService.getSavedToken();
             if (token == null) {
@@ -293,9 +508,20 @@ class _InicialPageState extends State<InicialPage> {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
             return;
           }
+          // Aba Buscar: abrir tela de resultados
+          if (i == 1) {
+            final token = await AuthService.getSavedToken();
+            if (token == null) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginHomePage()));
+              return;
+            }
+            Navigator.push(context, MaterialPageRoute(builder: (_) => SearchResultsPage(token: token)));
+            return;
+          }
           setState(() => _navIndex = i);
         },
         backgroundColor: Colors.white,
+        // withOpacity -> withValues (lint fix)
         indicatorColor: const Color(0xFF6E56CF).withValues(alpha: 0.10),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Início'),
@@ -309,15 +535,14 @@ class _InicialPageState extends State<InicialPage> {
 }
 
 /// ===================== HEADER / LISTAS / WIDGETS =====================
-/// (iguais aos seus, só mantive aqui para ficar completo)
 
 class _Header extends StatelessWidget {
   final String name; // primeiro nome
   final Uint8List? avatarBytes; // bytes do avatar (opcional)
   final String? avatarUrl; // optional remote avatar url
-  final VoidCallback onAdd;
+  final VoidCallback? onAdd;
 
-  const _Header({required this.name, this.avatarBytes, this.avatarUrl, required this.onAdd});
+  const _Header({required this.name, this.avatarBytes, this.avatarUrl, this.onAdd});
 
   String _initials(String n) {
     final parts = n.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
@@ -361,11 +586,12 @@ class _Header extends StatelessWidget {
             right: 20,
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: onAdd,
-                  tooltip: 'Adicionar imóvel',
-                ),
+                if (onAdd != null)
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: onAdd,
+                    tooltip: 'Adicionar imóvel',
+                  ),
                 const SizedBox(width: 6),
                 const Icon(Icons.notifications_none_rounded),
                 const SizedBox(width: 10),
@@ -374,13 +600,11 @@ class _Header extends StatelessWidget {
                     if (v == 'perfil') {
                       final token = await AuthService.getSavedToken();
                       if (token == null) {
-                        // não logado -> ir para login
                         try {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginHomePage()));
                         } catch (_) {}
                         return;
                       }
-                      // logado -> abrir perfil
                       try {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
                       } catch (_) {}
@@ -439,196 +663,6 @@ class _Header extends StatelessWidget {
   }
 }
 
-// --- Abaixo mantive exatamente como no seu post para ficar 100% plugável ---
-class _MeusAnunciosList extends StatelessWidget {
-  final List<Map<String, dynamic>> items;
-  final void Function(Map<String, dynamic>) onEdit;
-  final void Function(Map<String, dynamic>) onDelete;
-  const _MeusAnunciosList({required this.items, required this.onEdit, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 150,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-  itemBuilder: (context, index) => _MeuAnuncioCard(dados: items[index], onEdit: onEdit, onDelete: onDelete),
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemCount: items.length,
-      ),
-    );
-  }
-}
-
-class _MeuAnuncioCard extends StatelessWidget {
-  final Map<String, dynamic> dados;
-  final void Function(Map<String, dynamic>)? onEdit;
-  final void Function(Map<String, dynamic>)? onDelete;
-  const _MeuAnuncioCard({required this.dados, this.onEdit, this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    final titulo = (dados['titulo'] ?? '').toString().trim();
-    final endereco = (dados['endereco'] ?? 'Seu novo imóvel') as String;
-    final preco = (dados['preco'] ?? '').toString();
-    final periodicidade = (dados['periodicidade'] ?? 'mensal') as String;
-    final tag = (dados['tipo'] ?? dados['categoria'] ?? 'Anúncio').toString();
-
-    // Preparar thumbnail: pode ser URL (absoluta ou relativa) ou caminho local
-    final fotos = (dados['fotos_paths'] as List?)?.cast<String>() ?? const [];
-    Widget thumbWidget;
-    if (fotos.isNotEmpty) {
-      final first = fotos.first.toString();
-      if (first.startsWith('http')) {
-        thumbWidget = Image.network(first, width: 90, height: 150, fit: BoxFit.cover);
-      } else if (first.startsWith('/')) {
-        // caminho relativo retornado pelo backend (/media/...) -> prefixar backendHost
-        final url = '${backendHost}${first}';
-        thumbWidget = Image.network(url, width: 90, height: 150, fit: BoxFit.cover);
-      } else if (first.startsWith('file://')) {
-        try {
-          final file = File(Uri.parse(first).toFilePath());
-          thumbWidget = Image.file(file, width: 90, height: 150, fit: BoxFit.cover);
-        } catch (_) {
-          thumbWidget = Container(width: 90, height: 150, color: const Color(0xFFEFEFF5), child: const Icon(Icons.home_work_outlined));
-        }
-      } else {
-        // pode ser um caminho local absoluto
-        final file = File(first);
-        if (file.existsSync()) {
-          thumbWidget = Image.file(file, width: 90, height: 150, fit: BoxFit.cover);
-        } else {
-          thumbWidget = Container(width: 90, height: 150, color: const Color(0xFFEFEFF5), child: const Icon(Icons.home_work_outlined));
-        }
-      }
-    } else {
-      thumbWidget = Container(width: 90, height: 150, color: const Color(0xFFEFEFF5), child: const Icon(Icons.home_work_outlined));
-    }
-
-    return GestureDetector(
-      onTap: () async {
-        // Ao tocar: tentar buscar a versão completa do imóvel no backend
-        final id = dados['id'];
-        try {
-          final token = await AuthService.getSavedToken();
-          final url = Uri.parse('${backendHost}/propriedades/propriedades/$id/');
-          final resp = await http.get(url, headers: token != null
-              ? {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}
-              : {'Content-Type': 'application/json'});
-
-          if (resp.statusCode == 200) {
-            final Map<String, dynamic> full = jsonDecode(resp.body) as Map<String, dynamic>;
-            Navigator.push(context, MaterialPageRoute(builder: (_) => ImovelDetalhePage(imovel: full)));
-            return;
-          } else if (resp.statusCode == 401) {
-            await AuthService.logout();
-          }
-        } catch (e) {
-          // ignore and fallback
-        }
-
-        // fallback: abrir com os dados que temos (pode não ter fotos completas)
-        try {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ImovelDetalhePage(imovel: dados)));
-        } catch (_) {}
-      },
-      child: Container(
-        width: 220,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF000000).withValues(alpha: .06),
-              blurRadius: 10,
-              offset: const Offset(0, 6),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                bottomLeft: Radius.circular(20),
-              ),
-              child: thumbWidget,
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: _Tag(text: tag)),
-                        PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert, size: 18),
-                          onSelected: (v) {
-                            if (v == 'edit') {
-                              if (onEdit != null) onEdit!(dados);
-                            } else if (v == 'delete') {
-                              if (onDelete != null) onDelete!(dados);
-                            }
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Editar')),
-                            PopupMenuItem(value: 'delete', child: Text('Excluir')),
-                          ],
-                        ),
-                      ],
-                    ),
-
-                    // --- TÍTULO DO ANÚNCIO ---
-                    if (titulo.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        titulo,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          height: 1.2,
-                        ),
-                      ),
-                    ],
-
-                    // --- ENDEREÇO (um pouco menor) ---
-                    const SizedBox(height: 4),
-                    Text(
-                      endereco,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
-                        height: 1.2,
-                      ),
-                    ),
-
-                    // --- PREÇO ---
-                    Text(
-                      periodicidade == 'mensal' ? '$preco/mês' : '$preco/ano',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _LocationAndProfile extends StatelessWidget {
   final String city;
   const _LocationAndProfile({required this.city});
@@ -647,7 +681,7 @@ class _LocationAndProfile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withValues(alpha: .05),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
@@ -693,6 +727,220 @@ class _LocationAndProfile extends StatelessWidget {
   }
 }
 
+class _MeusAnunciosList extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  final void Function(Map<String, dynamic>) onEdit;
+  final void Function(Map<String, dynamic>) onDelete;
+  const _MeusAnunciosList({required this.items, required this.onEdit, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 280,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemBuilder: (context, index) =>
+            _MeuAnuncioCard(dados: items[index], onEdit: onEdit, onDelete: onDelete),
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemCount: items.length,
+      ),
+    );
+  }
+}
+
+class _MeuAnuncioCard extends StatelessWidget {
+  final Map<String, dynamic> dados;
+  final void Function(Map<String, dynamic>)? onEdit;
+  final void Function(Map<String, dynamic>)? onDelete;
+  const _MeuAnuncioCard({required this.dados, this.onEdit, this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final titulo = (dados['titulo'] ?? '').toString().trim();
+    final endereco = (dados['endereco'] ?? 'Seu novo imóvel') as String;
+    final preco = (dados['preco'] ?? '').toString();
+    final periodicidade = (dados['periodicidade'] ?? 'mensal') as String;
+    final tag = (dados['tipo'] ?? dados['categoria'] ?? 'Anúncio').toString();
+
+    // thumbnail: URL absoluta/relativa ou caminho local
+    final fotos = (dados['fotos_paths'] as List?)?.cast<String>() ?? const [];
+    Widget thumbWidget;
+    if (fotos.isNotEmpty) {
+      final first = fotos.first.toString();
+      if (first.startsWith('http')) {
+        thumbWidget = Image.network(
+          first,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackThumb(),
+        );
+      } else if (first.startsWith('/')) {
+        final url = '$backendHost$first';
+        thumbWidget = Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackThumb(),
+        );
+      } else if (first.startsWith('file://')) {
+        try {
+          final file = File(Uri.parse(first).toFilePath());
+          thumbWidget = Image.file(file, fit: BoxFit.cover);
+        } catch (_) {
+          thumbWidget = _fallbackThumb();
+        }
+      } else {
+        final file = File(first);
+        thumbWidget = file.existsSync() ? Image.file(file, fit: BoxFit.cover) : _fallbackThumb();
+      }
+    } else {
+      thumbWidget = _fallbackThumb();
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        final id = dados['id'];
+        try {
+          final token = await AuthService.getSavedToken();
+          final url = Uri.parse('$backendHost/propriedades/propriedades/$id/');
+          final resp = await http.get(
+            url,
+            headers: token != null
+                ? {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}
+                : {'Content-Type': 'application/json'},
+          );
+
+          if (resp.statusCode == 200) {
+            final Map<String, dynamic> full = jsonDecode(resp.body) as Map<String, dynamic>;
+            Navigator.push(context, MaterialPageRoute(builder: (_) => ImovelDetalhePage(imovel: full)));
+            return;
+          } else if (resp.statusCode == 401) {
+            await AuthService.logout();
+          }
+        } catch (_) {}
+
+        // fallback: abrir com os dados que temos
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ImovelDetalhePage(imovel: dados)));
+      },
+      child: Container(
+        width: 260,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF000000).withValues(alpha: .06),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // imagem ocupa o espaço disponível (evita overflow)
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(22),
+                  topRight: Radius.circular(22),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    SizedBox.expand(
+                      child: FittedBox(
+                        fit: BoxFit.cover,
+                        child: SizedBox(width: 1, height: 1, child: thumbWidget),
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      bottom: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF8A34),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          periodicidade == 'mensal' ? 'R\$ $preco/mês' : 'R\$ $preco/ano',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 6, 2),
+              child: Row(
+                children: [
+                  _Tag(text: tag),
+                  const Spacer(),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 18),
+                    onSelected: (v) {
+                      if (v == 'edit') {
+                        if (onEdit != null) onEdit!(dados);
+                      } else if (v == 'delete') {
+                        if (onDelete != null) onDelete!(dados);
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Editar')),
+                      PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            if (titulo.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  titulo,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                endereco,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                  height: 1.25,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackThumb() => _placeholderBox(height: 150);
+}
+
 class _SearchBar extends StatelessWidget {
   const _SearchBar();
 
@@ -706,7 +954,7 @@ class _SearchBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black.withValues(alpha: .05),
               blurRadius: 12,
               offset: const Offset(0, 6),
             )
@@ -719,179 +967,41 @@ class _SearchBar extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: TextField(
+                readOnly: true,
+                onTap: () async {
+                  final token = await AuthService.getSavedToken();
+                  if (token == null) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginHomePage()));
+                    return;
+                  }
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => SearchResultsPage(token: token)));
+                },
                 decoration: InputDecoration(
                   hintText: 'Procure por kitnet, casa…',
                   border: InputBorder.none,
                   hintStyle: GoogleFonts.poppins(
-                    color: Colors.grey.withValues(alpha: 0.60),
+                    color: Colors.grey.withValues(alpha: .60),
                     fontSize: 14,
                   ),
                 ),
               ),
             ),
             IconButton(
-              onPressed: () {},
+              onPressed: () async {
+                final token = await AuthService.getSavedToken();
+                if (token == null) {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginHomePage()));
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => SearchResultsPage(token: token)),
+                );
+              },
               icon: const Icon(Icons.mic_none_rounded),
             )
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CategoryChips extends StatelessWidget {
-  const _CategoryChips({
-    required this.categories,
-    required this.selected,
-    required this.onChanged,
-  });
-
-  final List<String> categories;
-  final int selected;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-        itemBuilder: (context, index) {
-          final isSelected = index == selected;
-          return GestureDetector(
-            onTap: () => onChanged(index),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFF6E56CF) : Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE6E8EC)),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: const Color(0xFF6E56CF).withValues(alpha: 0.25),
-                          blurRadius: 10,
-                          offset: const Offset(0, 6),
-                        )
-                      ]
-                    : null,
-              ),
-              child: Text(
-                categories[index],
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : const Color(0xFF1B1D28),
-                ),
-              ),
-            ),
-          );
-        },
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemCount: categories.length,
-      ),
-    );
-  }
-}
-
-class _FeaturedCarousel extends StatelessWidget {
-  const _FeaturedCarousel();
-
-  final List<_Feature> items = const [
-    _Feature(
-      title: 'Kitnets perto da Universidade',
-      image: 'https://images.unsplash.com/photo-1501183638710-841dd1904471?w=1200',
-    ),
-    _Feature(
-      title: 'Casas próximas ao centro',
-      image: 'https://images.unsplash.com/photo-1494526585095-c41746248156?w=1200',
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 190,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-        itemBuilder: (context, index) => _FeaturedCard(item: items[index]),
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
-        itemCount: items.length,
-      ),
-    );
-  }
-}
-
-class _Feature {
-  final String title;
-  final String image;
-  const _Feature({required this.title, required this.image});
-}
-
-class _FeaturedCard extends StatelessWidget {
-  const _FeaturedCard({required this.item});
-  final _Feature item;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Stack(
-        children: [
-          Image.network(
-            item.image,
-            width: 300,
-            height: 190,
-            fit: BoxFit.cover,
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    const Color(0xFF000000).withValues(alpha: 0.60),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 16,
-            bottom: 18,
-            right: 16,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item.title,
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFFFF).withValues(alpha: 0.90),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.arrow_forward_rounded, size: 18),
-                )
-              ],
-            ),
-          )
-        ],
       ),
     );
   }
@@ -921,112 +1031,7 @@ class _SectionHeader extends StatelessWidget {
             TextButton(
               onPressed: () {},
               child: Text(action!, style: GoogleFonts.poppins()),
-            )
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentList extends StatelessWidget {
-  const _RecentList();
-
-  final List<_Property> items = const [
-    _Property(
-      title: 'Apartamento na rua 13',
-      tag: 'Apartamento',
-      image: 'https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?w=1200',
-      price: 'R\$ 1290/mês',
-      rating: 4.9,
-      distance: '2.1km',
-    ),
-    _Property(
-      title: 'Kitnet aconchegante',
-      tag: 'Kitnet',
-      image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200',
-      price: 'R\$ 790/mês',
-      rating: 4.7,
-      distance: '900m',
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 150,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-        itemBuilder: (context, index) => _RecentCard(item: items[index]),
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemCount: items.length,
-      ),
-    );
-  }
-}
-
-class _RecentCard extends StatelessWidget {
-  const _RecentCard({required this.item});
-  final _Property item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 220,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF000000).withValues(alpha: .06),
-            blurRadius: 10,
-            offset: const Offset(0, 6),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              bottomLeft: Radius.circular(20),
             ),
-            child: Image.network(
-              item.image,
-              width: 90,
-              height: 150,
-              fit: BoxFit.cover,
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (item.tag != null) _Tag(text: item.tag!),
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      height: 1.2,
-                    ),
-                  ),
-                  Text(
-                    item.price,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
         ],
       ),
     );
@@ -1057,87 +1062,42 @@ class _Tag extends StatelessWidget {
   }
 }
 
-class _PopularPlaces extends StatelessWidget {
-  const _PopularPlaces();
+class _CategoryChips extends StatelessWidget {
+  final List<String> categories;
+  final int selected;
+  final ValueChanged<int> onChanged;
 
-  final places = const [
-    ('Edifício Sasha',
-        'https://images.unsplash.com/photo-1460317442991-0ec209397118?w=800'),
-    ('Parque Azaleia',
-        'https://images.unsplash.com/photo-1531846802986-4942a5c3dd08?w=800'),
-    ('Condomínio Vista',
-        'https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=800'),
-  ];
+  const _CategoryChips({
+    required this.categories,
+    required this.selected,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 82,
+      height: 38,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         itemBuilder: (context, index) {
-          final (name, img) = places[index];
-          return Column(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundImage: NetworkImage(img),
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                width: 90,
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(fontSize: 12),
-                ),
-              )
-            ],
+          final isSel = index == selected;
+          return ChoiceChip(
+            label: Text(categories[index]),
+            selected: isSel,
+            onSelected: (_) => onChanged(index),
           );
         },
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
-        itemCount: places.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemCount: categories.length,
       ),
     );
   }
 }
 
-class _NearbyGrid extends StatelessWidget {
-  const _NearbyGrid();
-
-  final List<_Property> items = const [
-    _Property(
-      title: 'Condomínio das Rosas',
-      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200',
-      price: 'R\$ 1500/mês',
-      rating: 4.9,
-      distance: '300m',
-    ),
-    _Property(
-      title: 'Casa na rua 04',
-      image: 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?w=1200',
-      price: 'R\$ 800/mês',
-      rating: 4.6,
-      distance: '1.5km',
-    ),
-    _Property(
-      title: 'Casa de 2 quartos',
-      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200',
-      price: 'R\$ 1235/mês',
-      rating: 4.7,
-      distance: '1.9km',
-    ),
-    _Property(
-      title: 'Apto perto da Av. Araguaia',
-      image: 'https://images.unsplash.com/photo-1494526585095-c41746248156?w=1200',
-      price: 'R\$ 790/mês',
-      rating: 4.8,
-      distance: '950m',
-    ),
-  ];
+class _SugestoesGrid extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  const _SugestoesGrid({required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -1149,11 +1109,39 @@ class _NearbyGrid extends StatelessWidget {
         itemCount: items.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          mainAxisExtent: 230,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+          mainAxisSpacing: 14,
+          crossAxisSpacing: 14,
+          childAspectRatio: 0.68,
         ),
-        itemBuilder: (context, index) => _PropertyCard(item: items[index]),
+        itemBuilder: (context, index) {
+          final m = items[index];
+          final fotos = m['fotos'] as List<dynamic>?;
+          final foto = (fotos != null && fotos.isNotEmpty && fotos[0] is Map && fotos[0]['imagem'] != null)
+              ? fotos[0]['imagem'].toString()
+              : '';
+          final title = m['titulo']?.toString() ?? '';
+          final preco = m['preco']?.toString() ?? m['preco_total']?.toString() ?? '';
+
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ImovelDetalhePage(imovel: m),
+                ),
+              );
+            },
+            child: _PropertyCard(
+              item: _Property(
+                title: title,
+                image: foto,
+                price: preco.isEmpty ? '-' : 'R\$ $preco',
+                rating: 4.8,
+                distance: '—',
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1189,7 +1177,7 @@ class _PropertyCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF000000).withValues(alpha: 0.05),
+            color: const Color(0xFF000000).withValues(alpha: .05),
             blurRadius: 10,
             offset: const Offset(0, 6),
           )
@@ -1205,12 +1193,15 @@ class _PropertyCard extends StatelessWidget {
                   topLeft: Radius.circular(22),
                   topRight: Radius.circular(22),
                 ),
-                child: Image.network(
-                  item.image,
-                  height: 130,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
+                child: item.image.isEmpty
+                    ? _placeholderBox(height: 130)
+                    : Image.network(
+                        item.image,
+                        height: 130,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _placeholderBox(height: 130),
+                      ),
               ),
               Positioned(
                 left: 10,
@@ -1242,7 +1233,7 @@ class _PropertyCard extends StatelessWidget {
                   ),
                   child: const Icon(Icons.favorite_border, size: 18),
                 ),
-              )
+              ),
             ],
           ),
           Padding(
@@ -1280,3 +1271,13 @@ class _PropertyCard extends StatelessWidget {
     );
   }
 }
+
+/// ===== Helpers de placeholder (sem rede) =====
+
+Widget _placeholderBox({double height = 130, double? width}) => Container(
+      height: height,
+      width: width ?? double.infinity,
+      color: const Color(0xFFEFEFF5),
+      alignment: Alignment.center,
+      child: const Icon(Icons.image_not_supported_outlined, size: 28, color: Colors.grey),
+    );

@@ -1,12 +1,16 @@
-// criar_imovel_detalhes_page.dart
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:mobile/core/constants.dart';
-import 'package:http_parser/http_parser.dart';
-import 'package:mobile/core/services/auth_service.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+
+import 'package:mobile/core/constants.dart';
+import 'package:mobile/core/services/auth_service.dart';
+
+import 'criar_imovel_fotos_page.dart';
 
 class CriarImovelDetalhesPage extends StatefulWidget {
   final Map<String, dynamic> dadosParciais;
@@ -23,6 +27,9 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
   static const Color _textDark = Color(0xFF1B1D28);
 
   final _precoCtrl = TextEditingController(text: 'R\$ 975,00');
+
+  // >>> NOVO: controller da área (m²)
+  final _areaCtrl = TextEditingController();
 
   final _tagLivreCtrl = TextEditingController();
   final _descricaoCtrl = TextEditingController();
@@ -48,10 +55,24 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
   @override
   void dispose() {
     _precoCtrl.dispose();
+    _areaCtrl.dispose(); // <<< NOVO
     _tagLivreCtrl.dispose();
     _descricaoCtrl.dispose();
     _tagFocus.dispose();
     super.dispose();
+  }
+
+  // --------- helpers de TAGS → booleans ----------
+  Map<String, bool> _mapTagsToBooleans(List<String> tags) {
+    bool tem(String nome) =>
+        tags.any((t) => t.toLowerCase().contains(nome.toLowerCase()));
+
+    return {
+      'aceita_pets': tem('pet'),
+      'mobiliado': tem('móv') || tem('mobília') || tem('mobiliado'),
+      'internet': tem('internet'),
+      'estacionamento': tem('garagem') || tem('vaga'),
+    };
   }
 
   void _addCustomTag() {
@@ -76,6 +97,9 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
         _tags.where((t) => t.selected).map((t) => t.label).toList()
           ..addAll(_customTags);
 
+    // >>> NOVO: lê a área do controller (aceita "45" ou "45,5" ou "45 m²")
+    String areaStr = _areaCtrl.text.trim();
+
     final dados = {
       ...widget.dadosParciais,
       'descricao': _descricaoCtrl.text.trim(),
@@ -85,7 +109,11 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
       'banheiros': _qtdBanheiros,
       'varandas': _qtdVarandas,
       'tags': tagsSelecionadas,
-    };
+      'area': areaStr.isEmpty ? null : areaStr, // <<< NOVO guarda a área (será parseada no envio)
+    }..removeWhere((k, v) => v == null || (v is String && v.isEmpty));
+
+    // 🔗 associa tags → booleans do backend
+    dados.addAll(_mapTagsToBooleans(tagsSelecionadas));
 
     _showPublicado(dados);
   }
@@ -108,7 +136,7 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                 width: 48,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: .12),
+                  color: Colors.black.withOpacity(.12),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -120,19 +148,18 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                     width: 120,
                     height: 120,
                     decoration: BoxDecoration(
-                      color: _purple.withValues(alpha: .10),
+                      color: _purple.withOpacity(.10),
                       shape: BoxShape.circle,
                     ),
                   ),
-                  // Coloque suas imagens reais no assets se quiser
-                  Icon(Icons.house_rounded, size: 92, color: _purple.withValues(alpha: .60)),
-                  Positioned(
+                  Icon(Icons.house_rounded, size: 92, color: _purple.withOpacity(.60)),
+                  const Positioned(
                     right: 6,
                     bottom: 6,
                     child: CircleAvatar(
                       radius: 14,
                       backgroundColor: Colors.green,
-                      child: const Icon(Icons.check, size: 16, color: Colors.white),
+                      child: Icon(Icons.check, size: 16, color: Colors.white),
                     ),
                   ),
                 ],
@@ -152,7 +179,7 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                 'Agora é com a gente!',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                  color: Colors.black.withValues(alpha: .55),
+                  color: Colors.black.withOpacity(.55),
                 ),
               ),
               const SizedBox(height: 18),
@@ -182,10 +209,9 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                         elevation: 0,
                       ),
                       onPressed: () async {
-                        // Tenta criar a propriedade no backend e fazer upload das fotos
                         Navigator.of(context).pop(); // fecha o bottom sheet
 
-                        // Indicar carregamento na página atual
+                        // loading
                         showDialog(
                           context: context,
                           barrierDismissible: false,
@@ -196,16 +222,30 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                         try {
                           final token = await AuthService.getSavedToken();
 
-                          // Monta payload mínimo conhecido
+                          // parse de preço (formato BR)
                           final precoStr = (dados['preco'] ?? '').toString();
                           double? precoVal;
                           try {
                             var s = precoStr.replaceAll(RegExp(r'[^0-9,\.]'), '');
-                            // normaliza formato brasileiro 1.234,56 -> 1234.56
                             s = s.replaceAll('.', '').replaceAll(',', '.');
                             precoVal = double.parse(s);
                           } catch (_) {
                             precoVal = null;
+                          }
+
+                          // >>> NOVO: parse da área (aceita "45", "45,5", "45 m²")
+                          final areaStr = (dados['area'] ?? '').toString();
+                          double? areaVal;
+                          try {
+                            var s = areaStr.replaceAll(RegExp(r'[^0-9,\.]'), '');
+                            s = s.replaceAll('.', '').replaceAll(',', '.');
+                            if (s.isNotEmpty) {
+                              areaVal = double.parse(s);
+                            } else {
+                              areaVal = null;
+                            }
+                          } catch (_) {
+                            areaVal = null;
                           }
 
                           final payload = {
@@ -214,37 +254,45 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                             'tipo': dados['tipo_imovel'] ?? dados['tipo'] ?? 'apartamento',
                             'preco': precoVal != null ? precoVal.toString() : dados['preco'],
                             'endereco': dados['endereco'] ?? '',
-                            // cidade/estado/cep podem não existir no fluxo; enviar vazio para evitar erro de null
                             'cidade': dados['cidade'] ?? '',
                             'estado': dados['estado'] ?? '',
                             'cep': dados['cep'] ?? '',
                             'quartos': dados['quartos'] ?? 1,
                             'banheiros': dados['banheiros'] ?? 1,
-                            'area': dados['area'] ?? null,
+                            'varandas': dados['varandas'] ?? 0,
+                            'area': areaVal != null ? areaVal.toString() : dados['area'], // <<< NOVO
+                            // booleans vindos do mapeamento de tags
                             'mobiliado': datosOrFalse(dados['mobiliado']),
                             'aceita_pets': datosOrFalse(dados['aceita_pets']),
                             'internet': datosOrFalse(dados['internet']),
                             'estacionamento': datosOrFalse(dados['estacionamento']),
+                            // opcional: envie as tags textuais também, se seu backend aceitar
+                            'tags': (dados['tags'] is List) ? dados['tags'] : [],
+                            // latitude/longitude se você colocou na etapa anterior
+                            'latitude': dados['latitude'],
+                            'longitude': dados['longitude'],
                           }..removeWhere((k, v) => v == null);
 
-                          // Função auxiliar localizada abaixo
-                          serverResult = await _createPropertyOnServer(payload, token, dados['fotos_paths']);
+                          serverResult = await _createPropertyOnServer(
+                            payload,
+                            token,
+                            dados['fotos_paths'],
+                          );
                         } catch (e) {
+                          // ignore: avoid_print
                           print('Erro ao criar propriedade: $e');
                         }
 
-                        Navigator.of(context).pop(); // fecha o dialog de carregamento
+                        Navigator.of(context).pop(); // fecha o loading
 
-                        // Se serverResult retornar um erro, mostre para o usuário e não feche a tela
                         if (serverResult != null && serverResult['error'] != null) {
                           final msg = serverResult['error'].toString();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Erro ao criar imóvel: $msg')),
                           );
-                          return; // mantém usuário na página para correção
+                          return;
                         }
 
-                        // Se tudo bem, devolve os dados do servidor (ou os locais se serverResult for nulo)
                         Navigator.of(context).pop(serverResult ?? dados);
                       },
                       child: Text(
@@ -300,7 +348,7 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                       width: 90,
                       height: 90,
                       decoration: BoxDecoration(
-                        color: _accent.withValues(alpha: .18),
+                        color: _accent.withOpacity(.18),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -340,6 +388,23 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                     onTap: () => setState(() => _mensal = false),
                   ),
                 ],
+              ),
+              const SizedBox(height: 22),
+
+              // >>> NOVO BLOCO: Área do imóvel
+              Text('Área do imóvel', style: _label),
+              const SizedBox(height: 8),
+              _RoundedField(
+                controller: _areaCtrl,
+                hintText: 'Ex.: 45',
+                // sufixo simples "m²"
+                suffix: Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Text(
+                    'm²',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
               const SizedBox(height: 22),
 
@@ -418,7 +483,6 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
               ),
               const SizedBox(height: 28),
 
-              // Descrição longa do imóvel
               Text('Descrição', style: _label),
               const SizedBox(height: 8),
               TextField(
@@ -426,8 +490,7 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
                 maxLines: 5,
                 style: GoogleFonts.poppins(),
                 decoration: InputDecoration(
-                  hintText: 'Descreva o imóvel, comodidades, vizinhança, regras...'
-                      ' (opcional)',
+                  hintText: 'Descreva o imóvel, comodidades, vizinhança, regras... (opcional)',
                   filled: true,
                   fillColor: const Color(0xFFF5F4FA),
                   isDense: true,
@@ -476,7 +539,7 @@ class _CriarImovelDetalhesPageState extends State<CriarImovelDetalhesPage> {
       );
 }
 
-// ---------- helpers ----------
+// ---------- helpers visuais ----------
 class _RoundedField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
@@ -496,7 +559,7 @@ class _RoundedField extends StatelessWidget {
       keyboardType: TextInputType.number,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: GoogleFonts.poppins(color: Colors.black.withValues(alpha: .45)),
+        hintStyle: GoogleFonts.poppins(color: Colors.black.withOpacity(.45)),
         suffixIcon: suffix == null ? null : Padding(padding: const EdgeInsets.only(right: 12), child: suffix),
         suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         filled: true,
@@ -534,7 +597,7 @@ class _RoundedTextField extends StatelessWidget {
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: GoogleFonts.poppins(color: Colors.black.withValues(alpha: .45)),
+        hintStyle: GoogleFonts.poppins(color: Colors.black.withOpacity(.45)),
         filled: true,
         fillColor: const Color(0xFFF5F4FA),
         isDense: true,
@@ -567,7 +630,7 @@ class _ToggleChip extends StatelessWidget {
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF6E56CF).withValues(alpha: .25),
+                    color: const Color(0xFF6E56CF).withOpacity(.25),
                     blurRadius: 10,
                     offset: const Offset(0, 6),
                   )
@@ -620,7 +683,7 @@ class _CounterTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: .06),
+                  color: Colors.black.withOpacity(.06),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 )
@@ -654,7 +717,7 @@ class _RoundIcon extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: .06),
+              color: Colors.black.withOpacity(.06),
               blurRadius: 8,
               offset: const Offset(0, 4),
             )
@@ -685,7 +748,7 @@ class _Pill extends StatelessWidget {
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF6E56CF).withValues(alpha: .25),
+                    color: const Color(0xFF6E56CF).withOpacity(.25),
                     blurRadius: 10,
                     offset: const Offset(0, 6),
                   )
@@ -756,7 +819,11 @@ bool datosOrFalse(dynamic v) {
   return s == 'true' || s == '1' || s == 'sim';
 }
 
-Future<Map<String, dynamic>?> _createPropertyOnServer(Map<String, dynamic> payload, String? token, List<dynamic>? fotosPaths) async {
+Future<Map<String, dynamic>?> _createPropertyOnServer(
+  Map<String, dynamic> payload,
+  String? token,
+  List<dynamic>? fotosPaths,
+) async {
   if (token == null) return null;
   try {
     final url = Uri.parse('$backendHost/propriedades/propriedades/');
@@ -772,16 +839,17 @@ Future<Map<String, dynamic>?> _createPropertyOnServer(Map<String, dynamic> paylo
     if (resp.statusCode >= 200 && resp.statusCode < 300) {
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final id = data['id'];
-      // se houver fotos, envie via multipart para o action upload_fotos
+
+      // upload de fotos (se houver)
       if (id != null && fotosPaths != null && fotosPaths.isNotEmpty) {
         final uploadUrl = Uri.parse('$backendHost/propriedades/propriedades/$id/upload_fotos/');
         final request = http.MultipartRequest('POST', uploadUrl);
         request.headers['Authorization'] = 'Bearer $token';
+
         for (var i = 0; i < fotosPaths.length; i++) {
           final p = fotosPaths[i] as String;
           final file = File(p);
           if (await file.exists()) {
-            // Detect mime type from extension (jpg/jpeg, png, webp)
             String lower = p.toLowerCase();
             String mimeType = 'image/jpeg';
             if (lower.endsWith('.png')) mimeType = 'image/png';
@@ -791,21 +859,23 @@ Future<Map<String, dynamic>?> _createPropertyOnServer(Map<String, dynamic> paylo
             final parts = mimeType.split('/');
             final mediaType = MediaType(parts[0], parts[1]);
 
-            request.files.add(await http.MultipartFile.fromPath('imagens', p, contentType: mediaType));
+            request.files.add(await http.MultipartFile.fromPath(
+              'imagens',
+              p,
+              contentType: mediaType,
+            ));
           }
         }
-        // opcional: marque a primeira imagem como principal
+
         if (request.files.isNotEmpty) {
-          request.fields['principal'] = '0';
+          request.fields['principal'] = '0'; // opcional
         }
 
         final streamed = await request.send();
         final respStr = await streamed.stream.bytesToString();
-        if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
-          // tudo OK
-        } else {
+        if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+          // ignore: avoid_print
           print('Upload fotos falhou: ${streamed.statusCode} - $respStr');
-          // tenta parsear JSON de erro do servidor
           try {
             final decoded = jsonDecode(respStr);
             return {'error': 'Upload fotos falhou', 'details': decoded};
@@ -817,10 +887,12 @@ Future<Map<String, dynamic>?> _createPropertyOnServer(Map<String, dynamic> paylo
 
       return data;
     } else {
+      // ignore: avoid_print
       print('Erro criando propriedade: ${resp.statusCode} ${resp.body}');
       return {'error': 'HTTP ${resp.statusCode}: ${resp.body}'};
     }
   } catch (e) {
+    // ignore: avoid_print
     print('Exceção criando propriedade: $e');
     return {'error': e.toString()};
   }
