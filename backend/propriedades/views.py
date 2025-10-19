@@ -6,6 +6,7 @@ from django.db.models import Q
 from .models import Propriedade, FotoPropriedade
 from .serializers import PropriedadeSerializer, FotoPropriedadeSerializer
 from .permissions import IsOwnerOrReadOnly
+from .pagination import StandardResultsSetPagination
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from rest_framework.permissions import IsAuthenticated
@@ -16,6 +17,7 @@ MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
 class PropriedadeViewSet(viewsets.ModelViewSet):
     queryset = Propriedade.objects.all()
     serializer_class = PropriedadeSerializer
+    pagination_class = StandardResultsSetPagination
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
     
     def perform_create(self, serializer):
@@ -41,10 +43,21 @@ class PropriedadeViewSet(viewsets.ModelViewSet):
                     Q(proprietario__email__icontains=sq)
                 )
 
-        # Filtrar por tipo de propriedade
+        # Filtrar por tipo de propriedade (aceita sinônimos e 'tudo/all')
         tipo = params.get('tipo')
         if tipo:
-            queryset = queryset.filter(tipo=tipo)
+            st = str(tipo).strip().lower()
+            if st not in {'tudo', 'todos', 'all'}:
+                map_tipo = {
+                    'studio': 'kitnet',
+                    'apartment': 'apartamento',
+                    'apartamento': 'apartamento',
+                    'kitnet': 'kitnet',
+                    'house': 'casa',
+                    'casa': 'casa',
+                    'republica': 'republica',
+                }
+                queryset = queryset.filter(tipo=map_tipo.get(st, st))
 
         # Filtrar por faixa de preço (ignorar valores vazios)
         preco_min = params.get('preco_min')
@@ -58,12 +71,16 @@ class PropriedadeViewSet(viewsets.ModelViewSet):
         # Filtrar por cidade
         cidade = params.get('cidade')
         if cidade:
-            queryset = queryset.filter(cidade__icontains=cidade)
+            sc = str(cidade).strip()
+            if sc:
+                queryset = queryset.filter(cidade__icontains=sc)
 
         # Filtrar por estado (UF)
         estado = params.get('estado')
         if estado:
-            queryset = queryset.filter(estado__iexact=estado)
+            se = str(estado).strip()
+            if se:
+                queryset = queryset.filter(estado__iexact=se)
 
         # Filtrar por quartos (min/max)
         quartos_min = params.get('quartos_min')
@@ -93,6 +110,8 @@ class PropriedadeViewSet(viewsets.ModelViewSet):
             allowed = {"preco", "-preco", "data_criacao", "-data_criacao"}
             if ordering in allowed:
                 queryset = queryset.order_by(ordering)
+        else:
+            queryset = queryset.order_by('-data_criacao')
 
         return queryset
     
@@ -186,4 +205,4 @@ def lista_favoritos(request):
     propriedades_favoritadas = request.user.propriedades_favoritas.all()
     
     serializer = PropriedadeSerializer(propriedades_favoritadas, many=True, context={'request': request})
-    return Response(serializer.data)   
+    return Response(serializer.data)

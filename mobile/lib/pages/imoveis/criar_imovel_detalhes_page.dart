@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:mobile/core/constants.dart';
 import 'package:mobile/core/services/auth_service.dart';
 
@@ -841,7 +841,7 @@ Future<Map<String, dynamic>?> _createPropertyOnServer(
       final id = data['id'];
 
       // upload de fotos (se houver)
-      if (id != null && fotosPaths != null && fotosPaths.isNotEmpty) {
+      if (!kIsWeb && id != null && fotosPaths != null && fotosPaths.isNotEmpty) {
         final uploadUrl = Uri.parse('$backendHost/propriedades/propriedades/$id/upload_fotos/');
         final request = http.MultipartRequest('POST', uploadUrl);
         request.headers['Authorization'] = 'Bearer $token';
@@ -876,13 +876,19 @@ Future<Map<String, dynamic>?> _createPropertyOnServer(
         if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
           // ignore: avoid_print
           print('Upload fotos falhou: ${streamed.statusCode} - $respStr');
-          try {
-            final decoded = jsonDecode(respStr);
-            return {'error': 'Upload fotos falhou', 'details': decoded};
-          } catch (_) {
-            return {'error': 'Upload fotos falhou: HTTP ${streamed.statusCode} - $respStr'};
+          // Em mobile, manter erro como fatal para o upload
+          if (!kIsWeb) {
+            try {
+              final decoded = jsonDecode(respStr);
+              return {'error': 'Upload fotos falhou', 'details': decoded};
+            } catch (_) {
+              return {'error': 'Upload fotos falhou: HTTP ${streamed.statusCode} - $respStr'};
+            }
           }
         }
+      } else if (kIsWeb && fotosPaths != null && fotosPaths.isNotEmpty) {
+        // Em Flutter Web, upload via File/fromPath não é suportado.
+        // Ignoramos o upload de fotos no Web para evitar erro de runtime.
       }
 
       return data;

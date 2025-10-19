@@ -11,7 +11,7 @@ class Propriedade(models.Model):
     
     proprietario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='propriedades')
     titulo = models.CharField(max_length=100)
-    descricao = models.TextField()
+    descricao = models.TextField(blank=True)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
     preco = models.DecimalField(max_digits=10, decimal_places=2)
     endereco = models.CharField(max_length=255, blank=True, null=True)
