@@ -73,21 +73,23 @@ Nesta nova abordagem, todos os integrantes do grupo estarão envolvidos igualmen
 
 Valor: eu, como locatário, quero buscar por um imóvel de acordo com as minhas preferências. Eu como inquilino, quero buscar por um imóvel.
 **SPRINT 03**
-| MEMBRO | FRONTEND| BACKEND |
-| Hátilan | Perfil do usuário | - |
-| João Victor | Favoritos | Favoritos|
-| Laura | Tela principal + tela de busca | - |
-| Sophia | Detalhes do imóvel | Detalhes do imóvel |
-| Vinícius | - | Componente de busca avançada |
+| MEMBRO       | FRONTEND                                | BACKEND                             |
+|--------------|------------------------------------------|-------------------------------------|
+| Hátilan      | Perfil do usuário                        | -                                   |
+| João Victor  | Favoritos                                | Favoritos                           |
+| Laura        | Tela principal + tela de busca           | -                                   |
+| Sophia       | Detalhes do imóvel                       | Detalhes do imóvel                  |
+| Vinícius     | -                                        | Componente de busca avançada        |
 
 
 **SPRINT 04**
 **Objetivo:** implementar o chat entre usuários, sistema de notificações automáticas e páginas detalhadas dos imóveis, conectando os módulos já desenvolvidos.
 
-| Membro          | Atribuições Frontend                                                                                                                                | Atribuições Backend                                                                                                     |
+| MEMBRO          | FRONTEND                                                                                                                                | BACKEND                                                                                                     |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **Sophia**      | Implementar **tela de detalhes do imóvel** (descrição, fotos, regras da casa, contato via chat); integrar com backend para exibir dados atualizados | Criar **endpoint de detalhes do imóvel**; aprimorar respostas da API com dados do dono, fotos e status                  |
 | **Laura**       | Desenvolver **interface de chat** (lista de conversas e mensagens em tempo real); criar layout de visualização detalhada do imóvel                  | Integrar **chat mobile** com WebSocket e endpoints REST; implementar **notificações push** no app                       |
 | **Vinícius**    | —                                                                                                                                                   | Modelar **entidade de mensagem (chat)**; criar **endpoints REST e WebSocket**; integrar com usuários e imóveis          |
 | **João Victor** | —                                                                                                                                                   | Implementar **sistema de notificações automáticas** (nova mensagem, atualização de imóvel); criar **rotina de alertas** |
 | **Hátilan**     | Ajustar **sincronia entre módulos web e mobile**; revisar integração de notificações                                                                | Executar **testes de integração** do chat e notificações entre plataformas                                              |
+
