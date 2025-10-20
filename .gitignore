@@ -1,0 +1,126 @@
+# ============================================================
+# 🌍 GERAL / SO / IDE
+# ============================================================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# ============================================================
+# 🔒 VARIÁVEIS DE AMBIENTE
+# ============================================================
+.env
+.env.*
+!.env.example
+backend/.env
+
+# ============================================================
+# 🌐 NODE / REACT / WEB
+# ============================================================
+**/node_modules/
+**/dist/
+**/build/
+web/build/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================
+# 🐍 PYTHON / DJANGO
+# ============================================================
+**/__pycache__/
+**/*.py[cod]
+**/*.pot
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+.coverage
+coverage.*
+htmlcov/
+
+# Ambientes virtuais (qualquer pasta)
+**/venv/
+**/.venv/
+**/env/
+**/.env/
+
+# Bancos locais
+**/*.sqlite3
+**/*.db
+
+# Arquivos gerados ou coletados
+backend/staticfiles/
+backend/media/
+
+# ============================================================
+# 🐦 FLUTTER / DART (GERAL)
+# ============================================================
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+
+# Linux / macOS / Windows gerados pelo Flutter
+**/linux/flutter/generated_*
+**/macos/Flutter/Generated*
+**/windows/flutter/generated_*
+
+# ============================================================
+# 🍏 FLUTTER iOS
+# ============================================================
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+# Firebase iOS
+**/ios/**/GoogleService-Info.plist
+
+# ============================================================
+# 🤖 FLUTTER ANDROID / GRADLE
+# ============================================================
+**/android/.gradle/
+**/android/local.properties
+**/android/key.properties
+**/android/app/*.keystore
+**/android/app/*.jks
+# Firebase Android
+**/android/app/google-services.json
+
+# ============================================================
+# 🧩 PYTHON PACOTES / OUTROS
+# ============================================================
+*.egg-info/
+*.egg
+MANIFEST
+*.spec
+*.bak
+*.orig
+*.rej
+
+# ============================================================
+# 🧰 EXTRAS (garantir limpeza completa)
+# ============================================================
+# Cache de compiladores ou IDEs
+.pytest_cache/
+.cache/
+__pypackages__/
+.tox/
+.mypy_cache/
+.dart_tool/
+.flutter-plugins-dependencies
+
+# Backup files
+*.bak
+*.old
+*.tmp
