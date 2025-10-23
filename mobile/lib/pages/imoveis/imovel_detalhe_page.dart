@@ -5,6 +5,8 @@ import 'package:mobile/pages/imoveis/widgets/dono_imovel_perfil.dart';
 import '../../core/constants.dart';
 import 'comentarios_section.dart';
 import 'map_preview.dart';
+import '../../core/services/favorites_service.dart';
+import '../../core/services/auth_service.dart';
 
 class ImovelDetalhePage extends StatelessWidget {
   final Map imovel;
@@ -231,6 +233,35 @@ class ImovelDetalhePage extends StatelessWidget {
                 ],
               ),
             ),
+
+                  // Favoritar / coração no topo direito do bloco de informações
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FutureBuilder<String?>(
+                      future: AuthService.getSavedToken(),
+                      builder: (ctx, snap) {
+                        final token = snap.data;
+                        return IconButton(
+                          onPressed: token == null
+                              ? null
+                              : () async {
+                                  final id = imovel['id'];
+                                  if (id == null) return;
+                                  final res = await FavoritesService.toggleFavorite(id as int, token: token);
+                                  if (res != null) {
+                                    imovel['favorito'] = res;
+                                    (ctx as Element).markNeedsBuild();
+                                  }
+                                },
+                          icon: Icon(
+                            imovel['favorito'] == true ? Icons.favorite : Icons.favorite_border,
+                            color: imovel['favorito'] == true ? Colors.redAccent : Colors.grey[600],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
             // Comentários
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
