@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from usuarios.models import Usuario
 
 class Propriedade(models.Model):
@@ -39,3 +40,18 @@ class FotoPropriedade(models.Model):
     
     def __str__(self):
         return f"Foto de {self.propriedade.titulo}"
+
+
+class Comentario(models.Model):
+    imovel = models.ForeignKey(Propriedade, related_name='comentarios', on_delete=models.CASCADE)
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='comentarios', on_delete=models.CASCADE)
+    texto = models.TextField()
+    nota = models.IntegerField(null=True, blank=True, default=0)
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    data_atualizacao = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-data_criacao']
+
+    def __str__(self):
+        return f"Comentario {self.id} em {self.imovel.titulo} por {self.autor}"

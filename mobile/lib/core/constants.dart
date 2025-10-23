@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 const String _hostWeb = 'http://localhost:8000';
 // IP local do computador (para celular físico)
-const String _hostLan = 'http://192.168.15.103:8000';
+const String _hostLan = 'http://192.168.10.109:8000';
 // IP do host quando está rodando em emulador Android
 const String _hostAndroidEmu = 'http://10.0.2.2:8000';
 
@@ -21,3 +21,7 @@ String get backendHost {
   }
   return _hostLan;
 }
+
+// Google Maps API key (used for Static Maps preview). Paste your key here.
+// Keep this value out of public repos if it's a production key.
+const String googleMapsApiKey = 'PUT_YOUR_GOOGLE_MAPS_API_KEY_HERE';

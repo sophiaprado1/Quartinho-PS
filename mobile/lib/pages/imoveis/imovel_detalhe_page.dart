@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/pages/signup/widgets/buttom_back.dart';
 import 'package:mobile/pages/imoveis/widgets/dono_imovel_perfil.dart';
 import '../../core/constants.dart';
+import 'comentarios_section.dart';
+import 'map_preview.dart';
 
 class ImovelDetalhePage extends StatelessWidget {
   final Map imovel;
@@ -209,8 +211,30 @@ class ImovelDetalhePage extends StatelessWidget {
                           .toList(),
                     ),
                   ],
+                  const SizedBox(height: 20),
+
+                  // Preview do mapa (static image)
+                  if ((imovel['latitude'] != null && imovel['longitude'] != null) ||
+                      (imovel['endereco'] != null && imovel['endereco'].toString().isNotEmpty)) ...[
+                    const SizedBox(height: 8),
+                    MapPreview(
+                      latitude: imovel['latitude'] != null
+                          ? double.tryParse(imovel['latitude'].toString())
+                          : null,
+                      longitude: imovel['longitude'] != null
+                          ? double.tryParse(imovel['longitude'].toString())
+                          : null,
+                      address: imovel['endereco'] != null ? imovel['endereco'].toString() : null,
+                      height: 160,
+                    ),
+                  ],
                 ],
               ),
+            ),
+            // Comentários
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: ComentariosSection(imovelId: imovel['id']),
             ),
           ],
         ),
@@ -218,6 +242,8 @@ class ImovelDetalhePage extends StatelessWidget {
     );
   }
 }
+
+
 
 class _InfoChip extends StatelessWidget {
   final String label;
