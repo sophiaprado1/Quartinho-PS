@@ -21,3 +21,7 @@ String get backendHost {
   }
   return _hostLan;
 }
+
+// Google Maps API key (used for Static Maps preview). Paste your key here.
+// Keep this value out of public repos if it's a production key.
+const String googleMapsApiKey = 'PUT_YOUR_GOOGLE_MAPS_API_KEY_HERE';
