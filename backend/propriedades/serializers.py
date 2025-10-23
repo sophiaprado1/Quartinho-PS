@@ -12,6 +12,7 @@ class PropriedadeSerializer(serializers.ModelSerializer):
     proprietario = UsuarioSerializer(read_only=True)
     endereco = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
     comentarios = serializers.SerializerMethodField()
+    favorito = serializers.SerializerMethodField()
     
     class Meta:
         model = Propriedade
@@ -21,6 +22,7 @@ class PropriedadeSerializer(serializers.ModelSerializer):
             'area', 'mobiliado', 'aceita_pets', 'internet', 'estacionamento',
             'data_criacao', 'data_atualizacao', 'fotos'
             , 'comentarios',
+            'favorito',
         ]
         read_only_fields = ['id', 'data_criacao', 'data_atualizacao', 'proprietario']
     
@@ -30,6 +32,16 @@ class PropriedadeSerializer(serializers.ModelSerializer):
     def get_comentarios(self, obj):
         qs = obj.comentarios.all()
         return ComentarioSerializer(qs, many=True).data
+
+    def get_favorito(self, obj):
+        # retorna True se o usuário na request favoritou este imóvel
+        request = self.context.get('request') if self.context else None
+        if request is None:
+            return False
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return False
+        return obj.favoritos.filter(pk=user.pk).exists()
 
 class ComentarioSerializer(serializers.ModelSerializer):
     autor = UsuarioSerializer(read_only=True)

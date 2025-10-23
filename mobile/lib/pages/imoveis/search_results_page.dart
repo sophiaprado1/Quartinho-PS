@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 
 import '../../core/constants.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/utils/property_utils.dart';
+import '../../core/services/favorites_service.dart';
 import '../imoveis/imovel_detalhe_page.dart';
 
 class SearchResultsPage extends StatefulWidget {
@@ -177,39 +179,10 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   }
 
   Map<String, dynamic> _normalize(dynamic raw) {
-    final m = Map<String, dynamic>.from(raw as Map);
-    // título
-    final titulo = (m['titulo'] ?? '').toString();
-    // preço pode vir como preco/preco_total/valor_aluguel
-    final preco = (m['preco'] ?? m['preco_total'] ?? m['valor_aluguel'] ?? '').toString();
-    // fotos: aceita [{imagem:...}] ou lista de strings
-    final List<dynamic> fotos = [];
-    if (m['fotos'] is List) {
-      for (final f in (m['fotos'] as List)) {
-        if (f is Map && f['imagem'] != null) {
-          fotos.add({'imagem': _absUrl(f['imagem'].toString())});
-        } else if (f is String) {
-          fotos.add({'imagem': _absUrl(f)});
-        }
-      }
-    } else if (m['fotos_paths'] is List) {
-      for (final f in (m['fotos_paths'] as List)) {
-        fotos.add({'imagem': _absUrl(f.toString())});
-      }
-    }
-    return {
-      ...m,
-      'titulo': titulo,
-      'preco': preco,
-      'fotos': fotos,
-    };
+    return normalizeProperty(raw);
   }
 
-  String _absUrl(String path) {
-    if (path.startsWith('http')) return path;
-    final p = path.startsWith('/') ? path : '/$path';
-    return '$backendHost$p';
-  }
+  // URLs and photo normalization handled by normalizeProperty
 
   // ---------------- UI + interação ----------------
 
@@ -369,15 +342,29 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
                                 final title = (m['titulo'] ?? '').toString();
                                 final preco = (m['preco'] ?? m['preco_total'] ?? '').toString();
+                                final rating = (m['rating'] is num) ? (m['rating'] as num).toDouble() : double.tryParse((m['rating'] ?? '').toString()) ?? 0.0;
                                 return _PropertyCard(
                                   imageUrl: foto,
                                   title: title,
                                   price: preco.isEmpty ? '-' : 'R\$ $preco',
+                                  rating: rating,
+                                  id: m['id'] is int ? m['id'] as int : (m['id'] is String ? int.tryParse(m['id'] as String) : null),
+                                  favorito: m['favorito'] == true,
                                   onTap: () {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(builder: (_) => ImovelDetalhePage(imovel: m)),
                                     );
+                                  },
+                                  onFavorite: (newState) async {
+                                    final token = await AuthService.getSavedToken();
+                                    if (token == null) return;
+                                    final id = m['id'];
+                                    if (id == null) return;
+                                    final res = await FavoritesService.toggleFavorite(id as int, token: token);
+                                    if (res != null) {
+                                      setState(() => m['favorito'] = res);
+                                    }
                                   },
                                 );
                               },
@@ -403,12 +390,20 @@ class _PropertyCard extends StatelessWidget {
     required this.title,
     required this.price,
     required this.onTap,
+    this.id,
+    this.favorito = false,
+    this.onFavorite,
+    this.rating = 0.0,
   });
 
   final String imageUrl;
   final String title;
   final String price;
   final VoidCallback onTap;
+  final int? id;
+  final bool favorito;
+  final Future<void> Function(bool newState)? onFavorite;
+  final double rating;
 
   @override
   Widget build(BuildContext context) {
@@ -430,21 +425,85 @@ class _PropertyCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // imagem
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(22),
-                topRight: Radius.circular(22),
-              ),
-              child: imageUrl.isEmpty
-                  ? _placeholderBox()
-                  : Image.network(
-                      imageUrl,
-                      height: 130,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _placeholderBox(),
+            // imagem com badge de preço e botão de favorito
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(22),
+                    topRight: Radius.circular(22),
+                  ),
+                  child: imageUrl.isEmpty
+                      ? _placeholderBox()
+                      : Image.network(
+                          imageUrl,
+                          height: 130,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _placeholderBox(),
+                        ),
+                ),
+                Positioned(
+                  left: 12,
+                  bottom: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF8A34),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: Text(
+                      price,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: FutureBuilder<String?>(
+                    future: AuthService.getSavedToken(),
+                    builder: (ctx, snap) {
+                      final token = snap.data;
+                      return IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: token == null || id == null
+                            ? null
+                            : () async {
+                                final res = await FavoritesService.toggleFavorite(id!, token: token);
+                                if (res != null && onFavorite != null) {
+                                  await onFavorite!(res);
+                                }
+                              },
+                        icon: Icon(favorito ? Icons.favorite : Icons.favorite_border, color: Colors.white),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.star, size: 16, color: Color(0xFFFFC107)),
+                  const SizedBox(width: 4),
+                  Text(
+                    rating.toStringAsFixed(1),
+                    style: GoogleFonts.poppins(fontSize: 12),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(Icons.location_on_outlined, size: 16),
+                  const SizedBox(width: 2),
+                  // placeholder distance
+                  Text('-', style: GoogleFonts.poppins(fontSize: 12)),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -456,24 +515,6 @@ class _PropertyCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF8A34),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  price,
-                  style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -585,10 +626,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
 
   Widget _boolTri(String label, bool? value, ValueChanged<bool?> onChanged) {
     // Tri-state: null = indif., true = Sim, false = Não
-    String text;
-    if (value == null) text = 'Indiferente';
-    else if (value) text = 'Sim';
-    else text = 'Não';
+    final label = value == null ? 'Indiferente' : (value ? 'Sim' : 'Não');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

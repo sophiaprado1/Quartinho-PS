@@ -18,8 +18,11 @@ import 'package:mobile/pages/imoveis/search_results_page.dart';
 
 import '../../core/services/auth_service.dart';
 import '../../core/constants.dart';
+import '../../core/utils/property_utils.dart';
 import 'package:mobile/pages/profile/profile_page.dart';
 import 'package:mobile/pages/login/login_home_page.dart';
+import 'package:mobile/pages/inicial/favorites_page.dart';
+import 'package:mobile/core/services/favorites_service.dart';
 
 class InicialPage extends StatefulWidget {
   final String name; // nome completo do usuário
@@ -63,11 +66,7 @@ class _InicialPageState extends State<InicialPage> {
     return first.isEmpty ? 'usuário' : first[0].toUpperCase() + first.substring(1);
   }
 
-  TextStyle get _h2 => GoogleFonts.poppins(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: const Color(0xFF1B1D28),
-      );
+  // header text style (kept inline where used)
 
   Future<void> _abrirCriarImovel() async {
     final novo = await Navigator.push<Map<String, dynamic>?>(
@@ -156,7 +155,7 @@ class _InicialPageState extends State<InicialPage> {
       }
 
       // id do usuário
-      _myUserId = _tryParseUserId(me as Map<String, dynamic>?);
+  _myUserId = _tryParseUserId(me);
 
       setState(() {});
     } catch (_) {}
@@ -291,52 +290,7 @@ class _InicialPageState extends State<InicialPage> {
     }
   }
 
-  /// Normaliza um item vindo do backend para o formato esperado pela grade de sugestões
-  Map<String, dynamic> _normalizeSugestao(Map raw) {
-    final m = Map<String, dynamic>.from(raw);
-    // título, preço e imagens
-    final titulo = (m['titulo'] ?? '').toString();
-    final preco = (m['preco'] ?? m['preco_total'] ?? '').toString();
-
-    // fotos: aceitamos "fotos" [{imagem: "..."}] ou "fotos_paths" ["/path", ...]
-    List<Map<String, String>> fotos = [];
-    final rawFotos = m['fotos'];
-    if (rawFotos is List) {
-      for (final f in rawFotos) {
-        if (f is Map && f['imagem'] != null) {
-          String s = f['imagem'].toString();
-          if (!s.startsWith('http')) {
-            if (!s.startsWith('/')) s = '/$s';
-            s = '$backendHost$s';
-          }
-          fotos.add({'imagem': s});
-        } else if (f is String) {
-          String s = f;
-          if (!s.startsWith('http')) {
-            if (!s.startsWith('/')) s = '/$s';
-            s = '$backendHost$s';
-          }
-          fotos.add({'imagem': s});
-        }
-      }
-    } else if (m['fotos_paths'] is List) {
-      for (final f in (m['fotos_paths'] as List)) {
-        String s = f.toString();
-        if (!s.startsWith('http')) {
-          if (!s.startsWith('/')) s = '/$s';
-          s = '$backendHost$s';
-        }
-        fotos.add({'imagem': s});
-      }
-    }
-
-    return {
-      ...m,
-      'titulo': titulo,
-      'preco': preco,
-      'fotos': fotos, // grade de sugestões usa m['fotos'][0]['imagem']
-    };
-  }
+  // property normalization now handled by core/utils/property_utils.normalizeProperty
 
   bool _isMine(Map m) {
     // Tenta detectar dono do imóvel
@@ -395,12 +349,12 @@ class _InicialPageState extends State<InicialPage> {
 
         final outros = <Map<String, dynamic>>[];
         for (final raw in data) {
-          final m = Map<String, dynamic>.from(raw as Map);
+          final norm = normalizeProperty(raw);
           // pula itens que são meus
-          if (_isMine(m)) continue;
+          if (_isMine(norm)) continue;
           // pula se já está na seção "meus anúncios"
-          if (myIds.contains(m['id'])) continue;
-          outros.add(_normalizeSugestao(m));
+          if (myIds.contains(norm['id'])) continue;
+          outros.add(norm);
         }
 
         if (mounted) {
@@ -516,6 +470,16 @@ class _InicialPageState extends State<InicialPage> {
               return;
             }
             Navigator.push(context, MaterialPageRoute(builder: (_) => SearchResultsPage(token: token)));
+            return;
+          }
+          // Aba Favoritos: abrir lista de favoritos
+          if (i == 2) {
+            final token = await AuthService.getSavedToken();
+            if (token == null) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginHomePage()));
+              return;
+            }
+            Navigator.push(context, MaterialPageRoute(builder: (_) => FavoritesPage(token: token)));
             return;
           }
           setState(() => _navIndex = i);
@@ -872,6 +836,35 @@ class _MeuAnuncioCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: FutureBuilder<String?>(
+                        future: AuthService.getSavedToken(),
+                        builder: (ctx, snap) {
+                          final token = snap.data;
+                          return IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: token == null
+                                ? null
+                                : () async {
+                                    final id = dados['id'];
+                                    if (id == null) return;
+                                    final res = await FavoritesService.toggleFavorite(id as int, token: token);
+                                    if (res != null) {
+                                      dados['favorito'] = res;
+                                      (ctx as Element).markNeedsBuild();
+                                    }
+                                  },
+                            icon: Icon(
+                              dados['favorito'] == true ? Icons.favorite : Icons.favorite_border,
+                              color: dados['favorito'] == true ? Colors.redAccent : Colors.white,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1132,14 +1125,14 @@ class _SugestoesGrid extends StatelessWidget {
               );
             },
             child: _PropertyCard(
-              item: _Property(
-                title: title,
-                image: foto,
-                price: preco.isEmpty ? '-' : 'R\$ $preco',
-                rating: 4.8,
-                distance: '—',
+                item: _Property(
+                  title: title,
+                  image: foto,
+                  price: preco.isEmpty ? '-' : 'R\$ $preco',
+                  rating: (m['rating'] is num) ? (m['rating'] as num).toDouble() : double.tryParse((m['rating'] ?? '').toString()) ?? 0.0,
+                  distance: '-',
+                ),
               ),
-            ),
           );
         },
       ),
