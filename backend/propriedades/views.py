@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import action, api_view, permission_classes
 from django.db.models import Q
-from .models import Propriedade, FotoPropriedade
-from .serializers import PropriedadeSerializer, FotoPropriedadeSerializer
-from .permissions import IsOwnerOrReadOnly
+from .models import Propriedade, FotoPropriedade, Comentario
+from .serializers import PropriedadeSerializer, FotoPropriedadeSerializer, ComentarioSerializer
+from .permissions import IsOwnerOrReadOnly, IsAuthorOrReadOnly
 from .pagination import StandardResultsSetPagination
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
@@ -206,3 +206,20 @@ def lista_favoritos(request):
     
     serializer = PropriedadeSerializer(propriedades_favoritadas, many=True, context={'request': request})
     return Response(serializer.data)
+
+
+class ComentarioViewSet(viewsets.ModelViewSet):
+    queryset = Comentario.objects.all()
+    serializer_class = ComentarioSerializer
+    # permitir leitura pública (GET) mas exigir autenticação para criação/edição
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
+
+    def perform_create(self, serializer):
+        serializer.save(autor=self.request.user)
+
+    def get_queryset(self):
+        imovel_id = self.request.query_params.get('imovel')
+        qs = Comentario.objects.all()
+        if imovel_id:
+            qs = qs.filter(imovel_id=imovel_id)
+        return qs

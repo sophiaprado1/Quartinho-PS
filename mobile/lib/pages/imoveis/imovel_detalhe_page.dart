@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/pages/signup/widgets/buttom_back.dart';
 import 'package:mobile/pages/imoveis/widgets/dono_imovel_perfil.dart';
 import '../../core/constants.dart';
+import 'comentarios_section.dart';
 
 class ImovelDetalhePage extends StatelessWidget {
   final Map imovel;
@@ -212,12 +213,19 @@ class ImovelDetalhePage extends StatelessWidget {
                 ],
               ),
             ),
+            // Comentários
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: ComentariosSection(imovelId: imovel['id']),
+            ),
           ],
         ),
       ),
     );
   }
 }
+
+
 
 class _InfoChip extends StatelessWidget {
   final String label;
