@@ -2,7 +2,6 @@
 Django settings for backend project.
 Adaptado para Django + Channels + Flutter LAN/WebSocket.
 """
-import redis
 from pathlib import Path
 import os
 from datetime import timedelta

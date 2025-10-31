@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Notificacao
+from .models import Notificacao, Device
 
 class NotificacaoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -16,5 +16,5 @@ class NotificacaoSerializer(serializers.ModelSerializer):
 
 class DeviceSerializer(serializers.ModelSerializer):
     class Meta:
-        model = __import__('notificacoes.models', fromlist=['Device']).Device
+        model = Device
         fields = ['id', 'usuario', 'registration_id', 'platform', 'criado_em']

@@ -9,7 +9,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import DeviceSerializer
 from .models import Device
-from .utils import send_fcm_to_user
 
 class NotificacaoViewSet(viewsets.ModelViewSet):
     """

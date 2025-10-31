@@ -2,7 +2,6 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth import get_user_model
 from channels.db import database_sync_to_async
 from asgiref.sync import sync_to_async
-import json
 from notificacoes.utils import send_fcm_to_user
 import logging
 from django.conf import settings
