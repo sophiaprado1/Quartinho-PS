@@ -459,7 +459,7 @@ class _MensagensTabState extends State<_MensagensTab> {
           } catch (_) {}
 
           return Dismissible(
-            key: ValueKey('conv_$otherId' '_' '$i'),
+            key: ValueKey('conv_${otherId}_$i'),
             background: Container(
               color: Colors.orangeAccent,
               alignment: Alignment.centerLeft,
