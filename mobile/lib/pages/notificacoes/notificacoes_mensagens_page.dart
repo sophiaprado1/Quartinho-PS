@@ -419,8 +419,6 @@ class _MensagensTabState extends State<_MensagensTab> {
             orElse: () => participants.isNotEmpty ? participants.first : null,
           );
           
-          print('DEBUG - Participant data: $other');
-          
           final otherName = other != null 
               ? (other['nome'] ?? other['nome_completo'] ?? other['username'] ?? other['email']?.toString().split('@')[0] ?? 'Usuário') 
               : 'Usuário';
@@ -442,7 +440,6 @@ class _MensagensTabState extends State<_MensagensTab> {
                 // Se é caminho relativo sem /media/, constrói URL completa
                 otherPhoto = '$backendHost/media/$photoStr';
               }
-              print('DEBUG - Photo URL: $otherPhoto');
             }
           }
           
