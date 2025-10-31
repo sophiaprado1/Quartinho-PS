@@ -37,7 +37,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   @override
   void initState() {
     super.initState();
-    print('ChatDetailPage - otherName: "${widget.otherName}", otherUserId: ${widget.otherUserId}');
     _loadMessages();
   // Conecta no WebSocket usando o host configurado do app.
   // Usa force=true para garantir uma conexão nova ao entrar na tela.

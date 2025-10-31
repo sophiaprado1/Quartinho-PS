@@ -33,9 +33,8 @@ class _ChatPageState extends State<ChatPage> {
         // initial load
         final initial = await MessagesService.loadMessagesWithUser(widget.ownerId, token: t);
         setState(() {
-          _messages
-            ..clear()
-            ..addAll(initial);
+          _messages.clear();
+          _messages.addAll(initial);
         });
         // start polling as a safety net (in case WS disconnects)
         _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
