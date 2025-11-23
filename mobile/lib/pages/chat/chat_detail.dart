@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/chat_service.dart';
+import '../inicial/inicial_page.dart';
 import '../../core/constants.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../imoveis/imovel_detalhe_page.dart';
 import '../../core/services/auth_service.dart';
+import '../usuarios/user_perfil_page.dart';
+import '../usuarios/user_anuncios_page.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final ChatService chatService;
@@ -53,6 +56,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             _messageIds.add(msgId);
           });
           _scrollToBottom();
+          _attemptMarkRead();
         }
       }
     });
@@ -71,6 +75,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     });
     // Scroll para o final após carregar
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    _attemptMarkRead();
   }
 
   Future<void> _resolveMyUser() async {
@@ -122,13 +127,83 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               displayName,
               style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
-              'ID: ${widget.otherUserId}',
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey),
+              'Usuário #${widget.otherUserId}',
+              style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey),
             ),
-            const SizedBox(height: 24),
-            // Aqui você pode adicionar mais informações do perfil no futuro
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1EFFA),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.person_outline, size: 16, color: Color(0xFF6E56CF)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Contato do anúncio',
+                        style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF6E56CF)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      side: const BorderSide(color: Color(0xFF6E56CF)),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => UserPerfilPage(
+                            userId: widget.otherUserId,
+                            token: widget.token,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.person_outline, color: Color(0xFF6E56CF)),
+                    label: Text('Ver perfil', style: GoogleFonts.poppins(color: const Color(0xFF6E56CF))),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6E56CF),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => UserAnunciosPage(
+                            ownerId: widget.otherUserId,
+                            token: widget.token,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.home_outlined, color: Colors.white),
+                    label: Text('Ver anúncios', style: GoogleFonts.poppins(color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -162,6 +237,53 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     // Envia via WebSocket
     widget.chatService.sendMessage(widget.otherUserId, text);
     _controller.clear();
+    // Marcação de leitura ocorrerá quando a mensagem oficial chegar via WS.
+    // Oferece ação para voltar à home após primeira interação rápida.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Mensagem enviada'),
+        action: SnackBarAction(
+          label: 'Inicial',
+          onPressed: _goToInicialPage,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _goToInicialPage() async {
+    try {
+      final token = await AuthService.getSavedToken();
+      if (token == null) {
+        Navigator.of(context).popUntil((r) => r.isFirst);
+        return;
+      }
+      final me = await AuthService.me(token: token);
+      final nome = (me?['nome'] ?? me?['nome_completo'] ?? me?['username'] ?? 'Usuário').toString();
+      final cidade = (me?['cidade'] ?? me?['city'] ?? '').toString();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => InicialPage(
+            name: nome,
+            city: cidade,
+            avatarBytes: null,
+          ),
+        ),
+        (route) => false,
+      );
+    } catch (_) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    }
+  }
+  void _attemptMarkRead() {
+    // Procura uma mensagem com conversation id para marcar como lida.
+    for (var i = messages.length - 1; i >= 0; i--) {
+      final m = messages[i];
+      final convId = m['conversation'];
+      if (convId != null) {
+        widget.chatService.markConversationRead(widget.token, convId as int);
+        break;
+      }
+    }
   }
 
   @override
@@ -204,10 +326,47 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             ],
           ),
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: Icon(Icons.call),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.call),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Excluir conversa',
+            onPressed: () async {
+              // Confirmação
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Excluir conversa'),
+                  content: const Text('Você quer ocultar esta conversa?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                    TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Excluir')),
+                  ],
+                ),
+              );
+              if (confirm != true) return;
+              try {
+                // Precisa de conversation id para deletar. Procura na última mensagem.
+                int? convId;
+                for (var i = messages.length - 1; i >= 0; i--) {
+                  final m = messages[i];
+                  final cid = m['conversation'];
+                  if (cid is int) { convId = cid; break; }
+                }
+                if (convId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conversa ainda não persistida. Envie uma mensagem.')));
+                  return;
+                }
+                final ok = await widget.chatService.updateConversation(widget.token, convId, deleted: true);
+                if (ok && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conversa excluída')));
+                  Navigator.of(context).pop();
+                }
+              } catch (_) {}
+            },
           ),
         ],
       ),

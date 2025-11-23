@@ -1,5 +1,14 @@
 from django.urls import path
-from .views import UsuarioCreateView, CheckEmailView, LoginView, UserPreferenceView, UserMeView, GoogleSocialLoginView, FacebookSocialLoginView
+from .views import (
+    UsuarioCreateView,
+    CheckEmailView,
+    LoginView,
+    UserPreferenceView,
+    UserMeView,
+    GoogleSocialLoginView,
+    FacebookSocialLoginView,
+    UsuarioDetailView,
+)
 
 urlpatterns = [
     path('usercreate/', UsuarioCreateView.as_view(), name='usuario-create'),
@@ -9,4 +18,5 @@ urlpatterns = [
     path('me/', UserMeView.as_view(), name='user-me'),
     path('social/google/', GoogleSocialLoginView.as_view(), name='social-google'),
     path('social/facebook/', FacebookSocialLoginView.as_view(), name='social-facebook'),
+    path('<int:pk>/', UsuarioDetailView.as_view(), name='usuario-detail'),
 ]
