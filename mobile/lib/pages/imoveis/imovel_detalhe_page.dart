@@ -8,7 +8,9 @@ import 'map_preview.dart';
 import '../../core/services/favorites_service.dart';
 import '../../core/services/auth_service.dart';
 // import 'contrato_aluguel_page.dart';
-import 'chat_page.dart';
+// import '../notificacoes/notificacoes_mensagens_page.dart'; // Navegação direta para o chat agora
+import '../chat/chat_detail.dart';
+import '../../services/chat_service.dart';
 import 'contrato_aluguel_page.dart';
 
 class ImovelDetalhePage extends StatelessWidget {
@@ -26,6 +28,14 @@ class ImovelDetalhePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final fotos = imovel['fotos'] as List<dynamic>?;
     final fotosList = fotos ?? <dynamic>[];
+
+  // Identifica proprietário para esconder botões de interação se for o próprio usuário
+  final ownerMap = (imovel['proprietario'] ?? imovel['dono']) as Map?;
+  final ownerId = ownerMap != null
+    ? (ownerMap['id'] is int
+      ? ownerMap['id'] as int
+      : int.tryParse(ownerMap['id']?.toString() ?? ''))
+    : null;
 
     bool boolOf(dynamic v) {
       if (v is bool) return v;
@@ -127,42 +137,88 @@ class ImovelDetalhePage extends StatelessWidget {
 
                   // Ações principais conforme Figma: "Eu quero!" e "Entrar em contato"
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF6E56CF)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                  FutureBuilder<String?>(
+                    future: AuthService.getSavedToken(),
+                    builder: (ctx, snap) {
+                      final token = snap.data;
+                      final currentUserId = token != null ? AuthService.extractUserId(token) : null;
+                      // Se é o dono, não mostra nenhuma ação de interação
+                      if (currentUserId != null && ownerId != null && currentUserId == ownerId) {
+                        return const SizedBox.shrink();
+                      }
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF6E56CF)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              onPressed: () {
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => ContratoAluguelPage(imovel: imovel)));
+                              },
+                              child: Text('Eu quero!', style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF6E56CF))),
+                            ),
                           ),
-                          onPressed: () {
-                            // Navega para o fluxo de contrato de aluguel, passando o imóvel atual
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => ContratoAluguelPage(imovel: imovel)));
-                          },
-                          child: Text('Eu quero!', style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF6E56CF))),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6E56CF),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF6E56CF),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              onPressed: () async {
+                                final owner = ownerMap;
+                                final ownerIdLocal = ownerId;
+                                if (ownerIdLocal == null) return;
+                                String? ownerName;
+                                if (owner != null) {
+                                  ownerName = (owner['nome'] ?? owner['nome_completo'] ?? owner['username'])?.toString();
+                                  if ((ownerName == null || ownerName.isEmpty) && owner['email'] != null) {
+                                    ownerName = owner['email'].toString().split('@').first;
+                                  }
+                                }
+                                String? ownerPhoto;
+                                if (owner != null) {
+                                  final rawPhoto = owner['foto_perfil'] ?? owner['avatar'];
+                                  if (rawPhoto != null && rawPhoto.toString().isNotEmpty) {
+                                    final photoStr = rawPhoto.toString();
+                                    if (photoStr.startsWith('http')) {
+                                      ownerPhoto = photoStr;
+                                    } else if (photoStr.startsWith('/')) {
+                                      ownerPhoto = '$backendHost$photoStr';
+                                    } else {
+                                      ownerPhoto = '$backendHost/media/$photoStr';
+                                    }
+                                  }
+                                }
+                                final token = await AuthService.getSavedToken();
+                                if (token == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Faça login para enviar mensagens.')),
+                                  );
+                                  return;
+                                }
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => ChatDetailPage(
+                                      chatService: ChatService(baseUrl: backendHost),
+                                      token: token,
+                                      otherUserId: ownerIdLocal,
+                                      otherName: ownerName ?? '',
+                                      otherPhoto: ownerPhoto,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Text('Entrar em contato', style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                            ),
                           ),
-                          onPressed: () {
-                            final owner = (imovel['proprietario'] ?? imovel['dono']) as Map?;
-                            final ownerId = owner != null ? (owner['id'] is int ? owner['id'] as int : int.tryParse(owner['id']?.toString() ?? '')) : null;
-                            final ownerName = owner != null ? (owner['nome'] ?? owner['nome_completo'] ?? owner['username'] ?? 'Proprietário').toString() : 'Proprietário';
-                            if (ownerId != null) {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => ChatPage(ownerId: ownerId, ownerName: ownerName)));
-                            }
-                          },
-                          child: Text('Entrar em contato', style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 24),
@@ -285,6 +341,10 @@ class ImovelDetalhePage extends StatelessWidget {
                       future: AuthService.getSavedToken(),
                       builder: (ctx, snap) {
                         final token = snap.data;
+                        final currentUserId = token != null ? AuthService.extractUserId(token) : null;
+                        if (currentUserId != null && ownerId != null && currentUserId == ownerId) {
+                          return const SizedBox.shrink();
+                        }
                         return IconButton(
                           onPressed: token == null
                               ? null

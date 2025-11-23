@@ -16,6 +16,12 @@ class UsuarioCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
 
+
+class UsuarioDetailView(generics.RetrieveAPIView):
+    queryset = Usuario.objects.all()
+    serializer_class = UsuarioSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
 class UserPreferenceView(APIView):
     permission_classes = [IsAuthenticated]
 
