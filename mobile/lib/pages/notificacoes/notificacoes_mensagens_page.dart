@@ -8,7 +8,19 @@ import '../../services/chat_service.dart';
 import '../chat/chat_detail.dart';
 
 class NotificacoesMensagensPage extends StatefulWidget {
-  const NotificacoesMensagensPage({super.key});
+  /// Se fornecido, ao abrir a tela vamos tentar focar/abrir essa conversa.
+  final int? initialOtherUserId;
+  /// Nome pré-carregado do outro usuário (ex: dono do imóvel) quando viemos de um fluxo externo.
+  final String? initialOtherName;
+  /// Foto pré-carregada do outro usuário (URL absoluta) quando viemos de um fluxo externo.
+  final String? initialOtherPhoto;
+
+  const NotificacoesMensagensPage({
+    super.key,
+    this.initialOtherUserId,
+    this.initialOtherName,
+    this.initialOtherPhoto,
+  });
 
   @override
   State<NotificacoesMensagensPage> createState() => _NotificacoesMensagensPageState();
@@ -36,11 +48,17 @@ class _NotificacoesMensagensPageState extends State<NotificacoesMensagensPage>
 
   @override
   Widget build(BuildContext context) {
+    // Se veio de um imóvel com initialOtherUserId, já começar na aba "Mensagens".
+    // Só fazemos isso na primeira build para não "prender" o usuário na conversa
+    // depois que ele voltar para esta tela.
+    if (widget.initialOtherUserId != null && _tabController.index != 1 && !_tabController.indexIsChanging) {
+      _tabController.index = 1;
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notificações e Mensagens'),
+        title: const SizedBox.shrink(),
         actions: [
-          // Botão de excluir todas (visível apenas na aba de notificações)
           if (_tabController.index == 0)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
@@ -52,26 +70,37 @@ class _NotificacoesMensagensPageState extends State<NotificacoesMensagensPage>
           preferredSize: const Size.fromHeight(56),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Container(
+            child: Container
+              (
               height: 40,
               decoration: BoxDecoration(
                 color: const Color(0xFFF1EFFA),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  color: const Color(0xFF6E56CF),
-                  borderRadius: BorderRadius.circular(20),
+              child: Center(
+                child: FractionallySizedBox(
+                  // pílula roxa ocupa ~88% da largura do container claro
+                  widthFactor: 0.88,
+                  child: TabBar(
+                    controller: _tabController,
+                    indicator: BoxDecoration(
+                      color: const Color(0xFF6E56CF),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    // faz o indicador ocupar todo o espaço disponível (entre o primeiro e o último tab)
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    // padding pequeno: a largura já vem da FractionallySizedBox
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    labelColor: Colors.white,
+                    unselectedLabelColor: const Color(0xFF6E56CF),
+                    labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    unselectedLabelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                    tabs: const [
+                      Tab(text: 'Notificações'),
+                      Tab(text: 'Mensagens'),
+                    ],
+                  ),
                 ),
-                labelColor: Colors.white,
-                unselectedLabelColor: const Color(0xFF6E56CF),
-                labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                unselectedLabelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w500),
-                tabs: const [
-                  Tab(text: 'Notificações'),
-                  Tab(text: 'Mensagens'),
-                ],
               ),
             ),
           ),
@@ -81,7 +110,11 @@ class _NotificacoesMensagensPageState extends State<NotificacoesMensagensPage>
         controller: _tabController,
         children: [
           _NotificacoesTab(key: _notificacoesKey),
-          const _MensagensTab(),
+          _MensagensTab(
+            initialOtherUserId: widget.initialOtherUserId,
+            initialOtherName: widget.initialOtherName,
+            initialOtherPhoto: widget.initialOtherPhoto,
+          ),
         ],
       ),
     );
@@ -318,7 +351,15 @@ class _NotificacoesTabState extends State<_NotificacoesTab> {
 }
 
 class _MensagensTab extends StatefulWidget {
-  const _MensagensTab();
+  final int? initialOtherUserId;
+  final String? initialOtherName;
+  final String? initialOtherPhoto;
+
+  const _MensagensTab({
+    this.initialOtherUserId,
+    this.initialOtherName,
+    this.initialOtherPhoto,
+  });
 
   @override
   State<_MensagensTab> createState() => _MensagensTabState();
@@ -331,11 +372,22 @@ class _MensagensTabState extends State<_MensagensTab> {
   List<dynamic> _conversations = [];
   String _query = '';
   int? _myUserId;
+  bool _didInitialLoad = false;
 
   @override
   void initState() {
     super.initState();
     _init();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Quando esta página volta ao topo (após sair do chat), garantir refresh único.
+    if (_didInitialLoad) {
+      // Pequeno debounce para evitar dupla chamada.
+      Future.microtask(() => _refreshConversations());
+    }
   }
 
   Future<void> _init() async {
@@ -358,20 +410,57 @@ class _MensagensTabState extends State<_MensagensTab> {
     
     try {
       final data = await _chatService.fetchConversations(token);
-      if (mounted) setState(() => _conversations = data);
+      if (!mounted) return;
+
+      // Atualiza conversas. Não abrimos mais o chat automaticamente aqui;
+      // o usuário sempre escolhe a conversa tocando na lista.
+      setState(() => _conversations = data);
+      _didInitialLoad = true;
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
+  Future<void> _refreshConversations() async {
+    if (_token == null) return;
+    try {
+      final data = await _chatService.fetchConversations(_token!);
+      if (!mounted) return;
+      setState(() => _conversations = data);
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      // Exibe um loading melhorzinho enquanto carrega as conversas
+      return const Center(child: CircularProgressIndicator());
+    }
+    // Não removemos mais conversas marcadas como deleted pelo backend;
+    // isso é apenas um estado para histórico, e a conversa pode voltar a ter mensagens novas.
+    final baseList = _conversations;
+
+    // Aplica filtro de busca pelo nome do outro participante
     final filtered = _query.isEmpty
-        ? _conversations
-        : _conversations.where((c) {
+        ? baseList
+        : baseList.where((c) {
             final parts = (c['participants'] as List<dynamic>? ?? []);
-            final other = parts.isNotEmpty ? parts.first : null;
-            final name = other != null ? (other['nome'] ?? '') : '';
+            // Encontrar o OUTRO participante (não eu)
+            final other = parts.firstWhere(
+              (p) {
+                final participantId = p['id'] is int
+                    ? p['id'] as int
+                    : int.tryParse('${p['id']}');
+                return participantId != _myUserId;
+              },
+              orElse: () => parts.isNotEmpty ? parts.first : null,
+            );
+            final name = other != null
+                ? (other['nome'] ??
+                    other['nome_completo'] ??
+                    other['username'] ??
+                    other['email']?.toString().split('@')[0] ??
+                    '')
+                : '';
             return name.toString().toLowerCase().contains(_query.toLowerCase());
           }).toList();
 
@@ -379,7 +468,9 @@ class _MensagensTabState extends State<_MensagensTab> {
       return Center(child: Text('Você ainda não tem mensagens', style: GoogleFonts.poppins()));
     }
     return RefreshIndicator(
-      onRefresh: _init,
+      onRefresh: () async {
+        await _refreshConversations();
+      },
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: filtered.length + 2,
@@ -563,21 +654,77 @@ class _MensagensTabState extends State<_MensagensTab> {
             onTap: () {
               if (_token == null) return;
               print('Navegando para chat - otherName: "$otherName", otherId: $otherId');
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ChatDetailPage(
-                    chatService: _chatService,
-                    token: _token!,
-                    otherUserId: otherId,
-                    otherName: otherName,
-                    otherPhoto: otherPhoto,
-                  ),
-                ),
-              );
+              _openConversationWith(otherId,
+                  presetName: otherName, presetPhoto: otherPhoto);
             },
           ));
         },
       ),
     );
+  }
+
+  void _openConversationWith(int otherUserId,
+      {String? presetName, String? presetPhoto}) {
+    if (_token == null || otherUserId == 0) return;
+    // Procura na lista a conversa com esse usuário, para reaproveitar dados (nome/foto)
+    final conv = _conversations.firstWhere(
+      (c) {
+        final parts = (c['participants'] as List<dynamic>? ?? []);
+        return parts.any((p) {
+          final pid = p['id'];
+          final pidInt = pid is int ? pid : int.tryParse('$pid');
+          return pidInt == otherUserId;
+        });
+      },
+      orElse: () => null,
+    );
+
+    String otherName = presetName ?? 'Usuário';
+    String? otherPhoto = presetPhoto;
+
+    if (conv != null) {
+      final parts = (conv['participants'] as List<dynamic>? ?? []);
+      final other = parts.firstWhere(
+        (p) {
+          final pid = p['id'];
+          final pidInt = pid is int ? pid : int.tryParse('$pid');
+          return pidInt == otherUserId;
+        },
+        orElse: () => parts.isNotEmpty ? parts.first : null,
+      );
+      if (other != null) {
+        otherName = (other['nome'] ?? other['nome_completo'] ?? other['username'] ??
+                other['email']?.toString().split('@')[0] ??
+                otherName)
+            .toString();
+
+        final photoPath = other['foto_perfil'] ?? other['avatar'];
+        if (photoPath != null && photoPath.toString().isNotEmpty) {
+          final photoStr = photoPath.toString();
+          if (photoStr.startsWith('http')) {
+            otherPhoto = photoStr;
+          } else if (photoStr.startsWith('/media/')) {
+            otherPhoto = '$backendHost$photoStr';
+          } else {
+            otherPhoto = '$backendHost/media/$photoStr';
+          }
+        }
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatDetailPage(
+            chatService: _chatService,
+            token: _token!,
+            otherUserId: otherUserId,
+            otherName: otherName,
+            otherPhoto: otherPhoto,
+          ),
+        ),
+      );
+    });
   }
 }

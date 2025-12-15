@@ -31,11 +31,13 @@ class ChatService {
     int conversationId, {
     bool? muted,
     bool? deleted,
+    bool? markRead,
   }) async {
     final uri = Uri.parse('$baseUrl/mensagens/conversations/$conversationId/');
     final body = <String, dynamic>{};
     if (muted != null) body['muted'] = muted;
     if (deleted != null) body['deleted'] = deleted;
+    if (markRead != null && markRead) body['mark_read'] = true;
 
     final res = await http.patch(
       uri,
@@ -47,6 +49,11 @@ class ChatService {
     );
 
     return res.statusCode >= 200 && res.statusCode < 300;
+  }
+
+  /// Marca uma conversa como lida (convenience wrapper)
+  Future<bool> markConversationRead(String token, int conversationId) {
+    return updateConversation(token, conversationId, markRead: true);
   }
 
   /// Busca mensagens trocadas com um usuário específico
@@ -112,14 +119,8 @@ class ChatService {
 
   /// Envia uma mensagem de texto
   void sendMessage(int toId, String text) {
-    final payload = json.encode({'type': 'message', 'to': toId, 'text': text});
-    if (_channel != null) {
-      // Tenta enviar via WebSocket
-      _channel!.sink.add(payload);
-    } else {
-      // Fallback: envia via HTTP para garantir persistência
-      _postMessageHttp(toId: toId, text: text);
-    }
+    // Evita duplicação: usa somente HTTP para persistir e deixar servidor emitir via WS.
+    _postMessageHttp(toId: toId, text: text);
   }
 
   /// Envia mensagem com dados extras (ex: imóvel)
@@ -129,20 +130,7 @@ class ChatService {
     Map<String, dynamic>? data,
     String? text,
   }) {
-    final map = <String, dynamic>{
-      'type': 'message',
-      'to': toId,
-      'message_type': messageType,
-    };
-    if (text != null) map['text'] = text;
-    if (data != null) map['data'] = data;
-    final encoded = json.encode(map);
-    if (_channel != null) {
-      _channel!.sink.add(encoded);
-    } else {
-      // Fallback HTTP
-      _postMessageHttp(toId: toId, text: text, messageType: messageType, data: data);
-    }
+    _postMessageHttp(toId: toId, text: text, messageType: messageType, data: data);
   }
 
   /// Envia mensagem via HTTP como fallback quando WS não está disponível

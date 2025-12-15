@@ -194,6 +194,33 @@ class AuthService {
     await prefs.remove('jwt_token');
   }
 
+  /// Extrai o user_id de um JWT sem fazer requisição /me.
+  /// Retorna null se não conseguir decodificar.
+  static int? extractUserId(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length < 2) return null;
+      var payload = parts[1];
+      // Ajusta padding para Base64URL
+      switch (payload.length % 4) {
+        case 2:
+          payload += '==';
+          break;
+        case 3:
+          payload += '=';
+          break;
+      }
+      final decoded = utf8.decode(base64Url.decode(payload));
+      final data = jsonDecode(decoded) as Map<String, dynamic>;
+      final raw = data['user_id'] ?? data['id'];
+      if (raw is int) return raw;
+      if (raw is String) return int.tryParse(raw);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // --- Onboarding flags (persist per user email) ---
   static String _roleKey(String email) => 'role_completed_${email.toLowerCase()}';
   static String _profileKey(String email) => 'profile_completed_${email.toLowerCase()}';

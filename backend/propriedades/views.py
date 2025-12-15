@@ -117,6 +117,11 @@ class PropriedadeViewSet(viewsets.ModelViewSet):
                 continue
             queryset = queryset.filter(**{field: parse_bool(val)})
 
+        # Filtrar por proprietário específico (para "Ver anúncios" no chat)
+        owner = params.get('owner') or params.get('proprietario') or params.get('owner_id')
+        if owner:
+            queryset = queryset.filter(proprietario_id=owner)
+
         # Ordenação com whitelist
         ordering = params.get('ordering')
         if ordering:

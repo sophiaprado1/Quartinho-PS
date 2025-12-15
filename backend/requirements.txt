@@ -9,4 +9,4 @@ daphne==4.0.0
 firebase-admin==6.0.0
 # mercadopago and stripe removed as payment providers have been disabled
 python-dotenv==1.0.0
-mercadopago==2.0.0
+mercadopago>=2.0.0
